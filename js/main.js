@@ -1,9 +1,18 @@
+// ========================
+// إعدادات الخريطة
+// ========================
 const DEFAULT_CENTER = [24.7136, 46.6753]; // الرياض — غيّرها حسب منطقتك
 const DEFAULT_ZOOM = 12;
 
+// ========================
+// التحقق من وضع العرض
+// ========================
 const urlParams = new URLSearchParams(window.location.search);
 const isViewMode = urlParams.has('view');
 
+// ========================
+// إنشاء الخريطة
+// ========================
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
 // خريطة OpenStreetMap (مجانية وتعمل دائمًا)
@@ -11,6 +20,9 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
+// ========================
+// إخفاء لوحة التحكم في وضع العرض
+// ========================
 const sidebar = document.getElementById('sidebar');
 if (isViewMode) {
   sidebar.classList.add('hidden');
@@ -18,10 +30,15 @@ if (isViewMode) {
   map.scrollWheelZoom.enable();
 }
 
+// ========================
+// إدارة الدوائر
+// ========================
 let circles = [];
 let addMode = false;
 
-// =============== تحميل الخريطة من الرابط ===============
+// ========================
+// تحميل الخريطة من الرابط
+// ========================
 function loadFromUrl() {
   if (isViewMode) {
     try {
@@ -56,7 +73,9 @@ function loadFromUrl() {
   }
 }
 
-// =============== مشاركة الخريطة (يدعم العربية) ===============
+// ========================
+// مشاركة الخريطة (يدعم العربية)
+// ========================
 function shareMap() {
   const data = {
     center: {
@@ -91,7 +110,9 @@ function shareMap() {
     .catch(() => prompt('انسخ الرابط يدويًا:', url));
 }
 
-// =============== إنشاء نافذة تعديل ===============
+// ========================
+// إنشاء نافذة تعديل
+// ========================
 function createEditPopup(circle) {
   const d = circle.data || {};
   const color = circle.options.color || '#3388ff';
@@ -101,11 +122,11 @@ function createEditPopup(circle) {
   const content = `
     <div class="circle-edit-popup">
       <label>اسم الموقع:</label>
-      <input type="text" id="siteName" value="${L.Util.escape(d.name || '')}">
+      <input type="text" id="siteName" value="${escapeHtml(d.name || '')}">
       <label>أفراد الأمن:</label>
-      <input type="text" id="securityNames" value="${L.Util.escape(d.security || '')}">
+      <input type="text" id="securityNames" value="${escapeHtml(d.security || '')}">
       <label>ملاحظات:</label>
-      <textarea id="notes" rows="2">${L.Util.escape(d.notes || '')}</textarea>
+      <textarea id="notes" rows="2">${escapeHtml(d.notes || '')}</textarea>
       <label>اللون:</label>
       <input type="color" id="color" value="${color}">
       <label>الشفافية:</label>
@@ -124,7 +145,9 @@ function createEditPopup(circle) {
   return popup;
 }
 
-// =============== حفظ بيانات الدائرة ===============
+// ========================
+// حفظ بيانات الدائرة
+// ========================
 window.saveCircleData = function(btn, circleId) {
   const popupContent = btn.closest('.leaflet-popup-content');
   if (!popupContent) return;
@@ -143,12 +166,14 @@ window.saveCircleData = function(btn, circleId) {
   circle.setStyle({ color, fillColor: color, fillOpacity: opacity });
   circle.setRadius(radius);
 
-  const tooltipContent = `<b>${L.Util.escape(name || 'نقطة غير معنونة')}</b><br><small>الأمن: ${L.Util.escape(security || '---')}</small><br><small>${L.Util.escape(notes)}</small>`;
+  const tooltipContent = `<b>${escapeHtml(name || 'نقطة غير معنونة')}</b><br><small>الأمن: ${escapeHtml(security || '---')}</small><br><small>${escapeHtml(notes)}</small>`;
   circle.setTooltipContent(tooltipContent);
   map.closePopup();
 };
 
-// =============== ربط الأحداث بالدائرة ===============
+// ========================
+// ربط الأحداث بالدائرة
+// ========================
 function attachEvents(circle) {
   if (!isViewMode) {
     // إزالة أي مستمعات سابقة لتجنب التكرار
@@ -161,8 +186,9 @@ function attachEvents(circle) {
     });
   }
 
+  // Tooltip عند التمرير
   const tooltipContent = circle.data?.name
-    ? `<b>${L.Util.escape(circle.data.name)}</b><br><small>الأمن: ${L.Util.escape(circle.data.security || '---')}</small>`
+    ? `<b>${escapeHtml(circle.data.name)}</b><br><small>الأمن: ${escapeHtml(circle.data.security || '---')}</small>`
     : 'نقطة مراقبة';
 
   circle.bindTooltip(tooltipContent, {
@@ -172,7 +198,18 @@ function attachEvents(circle) {
   });
 }
 
-// =============== أحداث واجهة المستخدم ===============
+// ========================
+// دالة لتفادي حقن HTML
+// ========================
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ========================
+// أحداث واجهة المستخدم
+// ========================
 document.getElementById('addCircleBtn')?.addEventListener('click', () => {
   addMode = true;
   alert('الآن انقر على الخريطة لتحديد موقع الدائرة.');
@@ -199,5 +236,7 @@ map.on('click', (e) => {
   createEditPopup(circle); // فتح نافذة الإدخال مباشرة بعد الرسم
 });
 
-// =============== بدء التشغيل ===============
+// ========================
+// بدء التشغيل
+// ========================
 loadFromUrl();
