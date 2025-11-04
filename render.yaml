@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: security-map
+    env: static
+    buildCommand: echo "No build needed"
+    staticPublishPath: ./
