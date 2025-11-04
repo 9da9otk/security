@@ -1,5 +1,5 @@
-const MAPTILER_KEY = 'a5Bw04JDHtYYQy2RwFvl';
-const DEFAULT_CENTER = [24.7136, 46.6753]; // الرياض (يمكنك تغييرها)
+const MAPTILER_KEY = 'a5Bw04JDHtYYQy2RwFvl'; // أو استخدم OpenStreetMap كما شرحت سابقًا
+const DEFAULT_CENTER = [24.7136, 46.6753];
 const DEFAULT_ZOOM = 12;
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -7,6 +7,7 @@ const isViewMode = urlParams.has('view');
 
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
+// استخدم OpenStreetMap لتتجنب مشاكل المفتاح
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
@@ -65,12 +66,14 @@ function shareMap() {
   });
 }
 
-function createEditPopup(circle) {
+function createEditPopup(circle, isNew = false) {
   const d = circle.data || {};
   const color = circle.options.color || '#3388ff';
   const opacity = circle.options.fillOpacity || 0.3;
   const radius = circle.getRadius() || 100;
-  return `<div class="circle-edit-popup">
+
+  const content = `
+    <div class="circle-edit-popup">
       <label>اسم الموقع:</label>
       <input type="text" id="siteName" value="${d.name || ''}">
       <label>أفراد الأمن:</label>
@@ -83,36 +86,49 @@ function createEditPopup(circle) {
       <input type="number" id="opacity" min="0" max="1" step="0.1" value="${opacity}">
       <label>نصف القطر (متر):</label>
       <input type="number" id="radius" min="10" value="${radius}">
-      <button onclick="saveCircleData(this)">حفظ</button>
-    </div>`;
+      <button onclick="saveCircleData(this, ${circle._leaflet_id})">حفظ</button>
+    </div>
+  `;
+
+  const popup = L.popup()
+    .setLatLng(circle.getLatLng())
+    .setContent(content)
+    .openOn(map);
+
+  // ربط الدائرة بالـ popup لاستخدامها لاحقًا
+  popup._circle = circle;
+  return popup;
 }
 
-window.saveCircleData = function(btn) {
-  const popup = btn.closest('.circle-edit-popup');
-  const circle = btn.__circle;
-  const name = popup.querySelector('#siteName').value;
-  const security = popup.querySelector('#securityNames').value;
-  const notes = popup.querySelector('#notes').value;
-  const color = popup.querySelector('#color').value;
-  const opacity = parseFloat(popup.querySelector('#opacity').value) || 0.3;
-  const radius = parseFloat(popup.querySelector('#radius').value) || 100;
+// دالة محدثة تقرأ القيم من داخل الـ popup
+window.saveCircleData = function(btn, circleId) {
+  // نحصل على الـ popup الذي يحتوي الزر
+  const popupElement = btn.closest('.leaflet-popup-content');
+  if (!popupElement) return;
+
+  const circle = circles.find(c => c._leaflet_id == circleId);
+  if (!circle) return;
+
+  const name = popupElement.querySelector('#siteName')?.value || '';
+  const security = popupElement.querySelector('#securityNames')?.value || '';
+  const notes = popupElement.querySelector('#notes')?.value || '';
+  const color = popupElement.querySelector('#color')?.value || '#3388ff';
+  const opacity = parseFloat(popupElement.querySelector('#opacity')?.value) || 0.3;
+  const radius = parseFloat(popupElement.querySelector('#radius')?.value) || 100;
+
   circle.data = { name, security, notes };
   circle.setStyle({ color, fillColor: color, fillOpacity: opacity });
   circle.setRadius(radius);
+
   const tooltipContent = `<b>${name || 'نقطة غير معنونة'}</b><br><small>الأمن: ${security || '---'}</small><br><small>${notes || ''}</small>`;
   circle.setTooltipContent(tooltipContent);
-  circle.closePopup();
+  map.closePopup();
 };
 
 function attachEvents(circle) {
   if (!isViewMode) {
     circle.on('click', function(e) {
-      const content = createEditPopup(circle);
-      const popup = L.popup().setLatLng(circle.getLatLng()).setContent(content).openOn(map);
-      setTimeout(() => {
-        const saveBtn = popup.getElement().querySelector('button');
-        if (saveBtn) saveBtn.__circle = circle;
-      }, 100);
+      createEditPopup(circle);
     });
   }
   const tooltipContent = circle.data?.name ? 
@@ -145,22 +161,7 @@ map.on('click', (e) => {
   circle.data = { name: '', security: '', notes: '' };
   circles.push(circle);
   attachEvents(circle);
-  const content = `<div class="circle-edit-popup">
-      <label>اسم الموقع:</label>
-      <input type="text" id="siteName">
-      <label>أفراد الأمن:</label>
-      <input type="text" id="securityNames">
-      <label>ملاحظات:</label>
-      <textarea id="notes" rows="2"></textarea>
-      <button onclick="saveCircleData(this)">إضافة</button>
-    </div>`;
-  const popup = L.popup().setLatLng(e.latlng).setContent(content).openOn(map);
-  setTimeout(() => {
-    const saveBtn = popup.getElement().querySelector('button');
-    if (saveBtn) saveBtn.__circle = circle;
-  }, 100);
+  createEditPopup(circle, true);
 });
 
-
 loadFromUrl();
-
