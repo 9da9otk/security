@@ -1,4 +1,3 @@
-const MAPTILER_KEY = 'F0KY2rXO2yaVNk1nlJYz';
 // ========================
 // إعدادات الخريطة
 // ========================
@@ -17,10 +16,8 @@ const isViewMode = urlParams.has('view');
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
 // خريطة OpenStreetMap (مجانية وتعمل دائمًا)
-L.tileLayer(`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`, {
-  attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-  tileSize: 512,
-  zoomOffset: -1
+L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=5d937485-a301-4455-9ba7-95a93120ff7d', {
+  attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
 }).addTo(map);
 // ========================
 // إخفاء لوحة التحكم في وضع العرض
@@ -242,6 +239,7 @@ map.on('click', (e) => {
 // بدء التشغيل
 // ========================
 loadFromUrl();
+
 
 
 
