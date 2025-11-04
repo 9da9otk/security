@@ -16,10 +16,11 @@ const isViewMode = urlParams.has('view');
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
 // خريطة OpenStreetMap (مجانية وتعمل دائمًا)
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+L.tileLayer(`https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`, {
+  attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+  tileSize: 512,
+  zoomOffset: -1
 }).addTo(map);
-
 // ========================
 // إخفاء لوحة التحكم في وضع العرض
 // ========================
@@ -240,3 +241,4 @@ map.on('click', (e) => {
 // بدء التشغيل
 // ========================
 loadFromUrl();
+
