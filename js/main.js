@@ -1,5 +1,4 @@
-const MAPTILER_KEY = 'a5Bw04JDHtYYQy2RwFvl'; // أو استخدم OpenStreetMap كما شرحت سابقًا
-const DEFAULT_CENTER = [24.7136, 46.6753];
+const DEFAULT_CENTER = [24.7136, 46.6753]; // الرياض — غيّرها حسب منطقتك
 const DEFAULT_ZOOM = 12;
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -7,7 +6,7 @@ const isViewMode = urlParams.has('view');
 
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-// استخدم OpenStreetMap لتتجنب مشاكل المفتاح
+// خريطة OpenStreetMap (مجانية وتعمل دائمًا)
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
@@ -22,31 +21,49 @@ if (isViewMode) {
 let circles = [];
 let addMode = false;
 
+// =============== تحميل الخريطة من الرابط ===============
 function loadFromUrl() {
   if (isViewMode) {
     try {
-      const data = JSON.parse(atob(urlParams.get('view')));
+      const encoded = urlParams.get('view');
+      const jsonString = decodeURIComponent(
+        atob(encoded)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const data = JSON.parse(jsonString);
+
       data.circles.forEach(c => {
         const circle = L.circle([c.lat, c.lng], {
           radius: c.radius,
-          color: c.color,
-          fillColor: c.fillColor,
-          fillOpacity: c.fillOpacity
+          color: c.color || '#3388ff',
+          fillColor: c.fillColor || '#3388ff',
+          fillOpacity: c.fillOpacity || 0.3
         }).addTo(map);
         circle.data = c;
         circles.push(circle);
         attachEvents(circle);
       });
-      if (data.center) map.setView([data.center.lat, data.center.lng], data.center.zoom);
+
+      if (data.center) {
+        map.setView([data.center.lat, data.center.lng], data.center.zoom);
+      }
     } catch (e) {
-      console.error("فشل تحميل الخريطة");
+      console.error("فشل تحميل الخريطة:", e);
+      alert("لا يمكن تحميل الخريطة من الرابط.");
     }
   }
 }
 
+// =============== مشاركة الخريطة (يدعم العربية) ===============
 function shareMap() {
   const data = {
-    center: { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() },
+    center: {
+      lat: map.getCenter().lat,
+      lng: map.getCenter().lng,
+      zoom: map.getZoom()
+    },
     circles: circles.map(c => ({
       lat: c.getLatLng().lat,
       lng: c.getLatLng().lng,
@@ -54,19 +71,28 @@ function shareMap() {
       color: c.options.color,
       fillColor: c.options.fillColor,
       fillOpacity: c.options.fillOpacity,
-      ...c.data
+      name: c.data?.name || '',
+      security: c.data?.security || '',
+      notes: c.data?.notes || ''
     }))
   };
-  const encoded = btoa(JSON.stringify(data));
+
+  const jsonString = JSON.stringify(data);
+  const encoded = btoa(
+    encodeURIComponent(jsonString).replace(/%([0-9A-F]{2})/g, (match, p1) =>
+      String.fromCharCode('0x' + p1)
+    )
+  );
+
   const url = `${window.location.origin}${window.location.pathname}?view=${encoded}`;
-  navigator.clipboard.writeText(url).then(() => {
-    alert('تم نسخ رابط الخريطة إلى الحافظة!');
-  }).catch(() => {
-    prompt('انسخ الرابط يدويًا:', url);
-  });
+
+  navigator.clipboard.writeText(url)
+    .then(() => alert('تم نسخ رابط الخريطة إلى الحافظة!'))
+    .catch(() => prompt('انسخ الرابط يدويًا:', url));
 }
 
-function createEditPopup(circle, isNew = false) {
+// =============== إنشاء نافذة تعديل ===============
+function createEditPopup(circle) {
   const d = circle.data || {};
   const color = circle.options.color || '#3388ff';
   const opacity = circle.options.fillOpacity || 0.3;
@@ -75,16 +101,16 @@ function createEditPopup(circle, isNew = false) {
   const content = `
     <div class="circle-edit-popup">
       <label>اسم الموقع:</label>
-      <input type="text" id="siteName" value="${d.name || ''}">
+      <input type="text" id="siteName" value="${L.Util.escape(d.name || '')}">
       <label>أفراد الأمن:</label>
-      <input type="text" id="securityNames" value="${d.security || ''}">
+      <input type="text" id="securityNames" value="${L.Util.escape(d.security || '')}">
       <label>ملاحظات:</label>
-      <textarea id="notes" rows="2">${d.notes || ''}</textarea>
-      <label>اللون (hex):</label>
+      <textarea id="notes" rows="2">${L.Util.escape(d.notes || '')}</textarea>
+      <label>اللون:</label>
       <input type="color" id="color" value="${color}">
-      <label>الشفافية (0-1):</label>
+      <label>الشفافية:</label>
       <input type="number" id="opacity" min="0" max="1" step="0.1" value="${opacity}">
-      <label>نصف القطر (متر):</label>
+      <label>نصف القطر (م):</label>
       <input type="number" id="radius" min="10" value="${radius}">
       <button onclick="saveCircleData(this, ${circle._leaflet_id})">حفظ</button>
     </div>
@@ -95,44 +121,43 @@ function createEditPopup(circle, isNew = false) {
     .setContent(content)
     .openOn(map);
 
-  // ربط الدائرة بالـ popup لاستخدامها لاحقًا
-  popup._circle = circle;
   return popup;
 }
 
-// دالة محدثة تقرأ القيم من داخل الـ popup
+// =============== حفظ بيانات الدائرة ===============
 window.saveCircleData = function(btn, circleId) {
-  // نحصل على الـ popup الذي يحتوي الزر
-  const popupElement = btn.closest('.leaflet-popup-content');
-  if (!popupElement) return;
+  const popupContent = btn.closest('.leaflet-popup-content');
+  if (!popupContent) return;
 
   const circle = circles.find(c => c._leaflet_id == circleId);
   if (!circle) return;
 
-  const name = popupElement.querySelector('#siteName')?.value || '';
-  const security = popupElement.querySelector('#securityNames')?.value || '';
-  const notes = popupElement.querySelector('#notes')?.value || '';
-  const color = popupElement.querySelector('#color')?.value || '#3388ff';
-  const opacity = parseFloat(popupElement.querySelector('#opacity')?.value) || 0.3;
-  const radius = parseFloat(popupElement.querySelector('#radius')?.value) || 100;
+  const name = popupContent.querySelector('#siteName')?.value.trim() || '';
+  const security = popupContent.querySelector('#securityNames')?.value.trim() || '';
+  const notes = popupContent.querySelector('#notes')?.value.trim() || '';
+  const color = popupContent.querySelector('#color')?.value || '#3388ff';
+  const opacity = parseFloat(popupContent.querySelector('#opacity')?.value) || 0.3;
+  const radius = parseFloat(popupContent.querySelector('#radius')?.value) || 100;
 
   circle.data = { name, security, notes };
   circle.setStyle({ color, fillColor: color, fillOpacity: opacity });
   circle.setRadius(radius);
 
-  const tooltipContent = `<b>${name || 'نقطة غير معنونة'}</b><br><small>الأمن: ${security || '---'}</small><br><small>${notes || ''}</small>`;
+  const tooltipContent = `<b>${L.Util.escape(name || 'نقطة غير معنونة')}</b><br><small>الأمن: ${L.Util.escape(security || '---')}</small><br><small>${L.Util.escape(notes)}</small>`;
   circle.setTooltipContent(tooltipContent);
   map.closePopup();
 };
 
+// =============== ربط الأحداث بالدائرة ===============
 function attachEvents(circle) {
   if (!isViewMode) {
-    circle.on('click', function(e) {
-      createEditPopup(circle);
-    });
+    circle.on('click', () => createEditPopup(circle));
   }
-  const tooltipContent = circle.data?.name ? 
-    `<b>${circle.data.name}</b><br><small>الأمن: ${circle.data.security || '---'}</small>` : 'نقطة مراقبة';
+
+  const tooltipContent = circle.data?.name
+    ? `<b>${L.Util.escape(circle.data.name)}</b><br><small>الأمن: ${L.Util.escape(circle.data.security || '---')}</small>`
+    : 'نقطة مراقبة';
+
   circle.bindTooltip(tooltipContent, {
     className: 'custom-tooltip',
     direction: 'top',
@@ -140,6 +165,7 @@ function attachEvents(circle) {
   });
 }
 
+// =============== أحداث واجهة المستخدم ===============
 document.getElementById('addCircleBtn')?.addEventListener('click', () => {
   addMode = true;
   alert('الآن انقر على الخريطة لتحديد موقع الدائرة.');
@@ -152,16 +178,19 @@ map.on('click', (e) => {
   if (isViewMode || !addMode) return;
   addMode = false;
   map.getContainer().style.cursor = '';
+
   const circle = L.circle(e.latlng, {
     radius: 100,
     color: '#3388ff',
     fillColor: '#3388ff',
     fillOpacity: 0.3
   }).addTo(map);
+
   circle.data = { name: '', security: '', notes: '' };
   circles.push(circle);
   attachEvents(circle);
-  createEditPopup(circle, true);
+  createEditPopup(circle);
 });
 
+// =============== بدء التشغيل ===============
 loadFromUrl();
