@@ -1,8 +1,5 @@
-// ========================
-// إعدادات الخريطة — مركزها الآن على الدرعية
-// ========================
 const DEFAULT_CENTER = [24.73722164546818, 46.53877581519047]; // الدرعية — القصور التاريخية
-const DEFAULT_ZOOM = 18;
+const DEFAULT_ZOOM = 14;
 
 // ========================
 // التحقق من وضع العرض
@@ -71,9 +68,8 @@ function decodeData(encoded) {
 // ========================
 const map = L.map('map').setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-// --- تم إصلاح المسافات الزائدة ---
-L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png?api_key=5d937485-a301-4455-9ba7-95a93120ff7d', {
-  attribution: '&copy; <a href="https://stadiamaps.com/">Stadia Maps</a>'
+L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/  {z}/{x}/{y}{r}.png?api_key=5d937485-a301-4455-9ba7-95a93120ff7d', {
+  attribution: '&copy; <a href="https://stadiamaps.com/  ">Stadia Maps</a>'
 }).addTo(map);
 
 // ========================
@@ -104,37 +100,24 @@ function loadFromUrl() {
       const data = decodeData(encoded);
 
       data.circles.forEach(c => {
-        // --- إنشاء الدائرة ---
         const circle = L.circle([c.lat, c.lng], {
           radius: c.radius,
           color: c.color || '#1a5fb4',
           fillColor: c.fillColor || '#3388ff',
-          fillOpacity: c.fillOpacity || 0.3
+          fillOpacity: c.fillOpacity || 0.3,
+          draggable: true // ← تمكين السحب عند التحميل
         }).addTo(map);
 
-        // --- إنشاء العلامة القابلة للسحب ---
-        const dragMarker = L.marker([c.lat, c.lng], {
-          draggable: true,
-          icon: L.divIcon({ className: 'invisible-drag-marker', iconSize: [0, 0] })
-        }).addTo(map);
+        circle.data = c;
+        circles.push(circle);
+        attachEvents(circle);
 
-        // --- ربط حركة العلامة بتحريك الدائرة ---
-        dragMarker.on('drag', function() {
-          const newLatLng = dragMarker.getLatLng();
-          circle.setLatLng(newLatLng);
-        });
-
-        dragMarker.on('dragend', function() {
-          const newLatLng = dragMarker.getLatLng();
+        // عند سحب الدائرة، تحديث الإحداثيات في البيانات
+        circle.on('dragend', function() {
+          const newLatLng = circle.getLatLng();
           circle.data.lat = newLatLng.lat;
           circle.data.lng = newLatLng.lng;
         });
-
-        // --- حفظ المرجع ---
-        circle.data = c;
-        circle._dragMarker = dragMarker;
-        circles.push(circle);
-        attachEvents(circle);
       });
 
       if (data.center) {
@@ -183,7 +166,7 @@ function shareMap() {
 }
 
 // ========================
-// إنشاء نافذة تعديل (Popup) — تظهر مباشرة من الدائرة
+// إنشاء نافذة تعديل (بعرض أوسع + زر حذف)
 // ========================
 function createEditPopup(circle) {
   const d = circle.data || {};
@@ -247,13 +230,7 @@ function createEditPopup(circle) {
     </div>
   `;
 
-  // --- Popup يظهر مباشرة من مركز الدائرة ---
-  const popup = L.popup({
-    maxWidth: 320,
-    // offset: [0, -10], // تم إزالة هذا
-    closeButton: false, // إزالة زر الإغلاق
-    autoPan: false      // منع الخريطة من التحرك
-  })
+  const popup = L.popup({ maxWidth: 320 })
     .setLatLng(circle.getLatLng())
     .setContent(content)
     .openOn(map);
@@ -275,34 +252,15 @@ window.duplicateCircle = function(circleId) {
     latlng.lng + (Math.random() - 0.5) * offset * 2
   ];
 
-  // --- إنشاء الدائرة الجديدة ---
   const newCircle = L.circle(newLatLng, {
     radius: original.getRadius(),
     color: original.options.color,
     fillColor: original.options.fillColor,
-    fillOpacity: original.options.fillOpacity
+    fillOpacity: original.options.fillOpacity,
+    draggable: true
   }).addTo(map);
 
-  // --- إنشاء العلامة القابلة للسحب للنسخة الجديدة ---
-  const newDragMarker = L.marker(newLatLng, {
-    draggable: true,
-    icon: L.divIcon({ className: 'invisible-drag-marker', iconSize: [0, 0] })
-  }).addTo(map);
-
-  newDragMarker.on('drag', function() {
-    const newLatLng = newDragMarker.getLatLng();
-    newCircle.setLatLng(newLatLng);
-  });
-
-  newDragMarker.on('dragend', function() {
-    const newLatLng = newDragMarker.getLatLng();
-    newCircle.data.lat = newLatLng.lat;
-    newCircle.data.lng = newLatLng.lng;
-  });
-
-  // --- نسخ البيانات ---
-  newCircle.data = { ...original.data, lat: newLatLng[0], lng: newLatLng[1] };
-  newCircle._dragMarker = newDragMarker;
+  newCircle.data = { ...original.data };
   circles.push(newCircle);
   attachEvents(newCircle);
   createEditPopup(newCircle);
@@ -320,10 +278,6 @@ window.deleteCircle = function(circleId) {
 
   const circle = circles[index];
   map.removeLayer(circle);
-  // تأكد من إزالة العلامة القابلة للسحب أيضًا
-  if (circle._dragMarker && map.hasLayer(circle._dragMarker)) {
-    map.removeLayer(circle._dragMarker);
-  }
   circles.splice(index, 1);
   map.closePopup();
 };
@@ -333,16 +287,10 @@ window.deleteCircle = function(circleId) {
 // ========================
 window.saveCircleData = function(btn, circleId) {
   const popupContent = btn.closest('.leaflet-popup-content');
-  if (!popupContent) {
-    console.error("لا يمكن العثور على محتوى popup.");
-    return;
-  }
+  if (!popupContent) return;
 
   const circle = circles.find(c => c._leaflet_id == circleId);
-  if (!circle) {
-    console.error("لا يمكن العثور على الدائرة.");
-    return;
-  }
+  if (!circle) return;
 
   const name = popupContent.querySelector('#siteName')?.value.trim() || '';
   const security = popupContent.querySelector('#securityNames')?.value.trim() || '';
@@ -352,19 +300,15 @@ window.saveCircleData = function(btn, circleId) {
   const opacity = parseFloat(popupContent.querySelector('#opacity')?.value) || 0.3;
   const radius = parseFloat(popupContent.querySelector('#radius')?.value) || 100;
 
-  // --- تحديث بيانات الدائرة ---
   circle.data = { name, security, notes, lat: circle.getLatLng().lat, lng: circle.getLatLng().lng };
   circle.setStyle({ color, fillColor, fillOpacity: opacity });
   circle.setRadius(radius);
 
-  // --- تحديث tooltip ---
   const tooltipContent = `<b>${escapeHtml(name || 'نقطة غير معنونة')}</b><br>
     <small>الأمن: ${escapeHtml(security || '---')}</small><br>
     <small style="color:#555;">${escapeHtml(notes || '')}</small>`;
   circle.setTooltipContent(tooltipContent);
-
-  map.closePopup(); // إغلاق الـ popup بعد الحفظ
-  console.log("تم حفظ الدائرة:", circle.data); // رسالة تأكيد في الكونسول
+  map.closePopup();
 };
 
 // ========================
@@ -375,6 +319,16 @@ function attachEvents(circle) {
     circle.off('click');
     circle.on('click', function(e) {
       createEditPopup(e.target);
+    });
+  }
+
+  // تمكين السحب إذا لم نكن في وضع العرض
+  if (!isViewMode) {
+    circle.dragging.enable();
+    circle.on('dragend', function() {
+      const ll = circle.getLatLng();
+      circle.data.lat = ll.lat;
+      circle.data.lng = ll.lng;
     });
   }
 
@@ -390,13 +344,12 @@ function attachEvents(circle) {
 }
 
 // ========================
-// دالة escape HTML — محدثة لدعم السطور الجديدة
+// دالة escape HTML
 // ========================
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
-  // تحويل \n إلى <br> للحفاظ على التنسيق
-  return div.innerHTML.replace(/\n/g, '<br>');
+  return div.innerHTML;
 }
 
 // ========================
@@ -415,38 +368,18 @@ map.on('click', (e) => {
   addMode = false;
   map.getContainer().style.cursor = '';
 
-  // --- إنشاء الدائرة ---
   const circle = L.circle(e.latlng, {
     radius: 100,
     color: '#1a5fb4',
     fillColor: '#3388ff',
-    fillOpacity: 0.3
+    fillOpacity: 0.3,
+    draggable: true // ← قابلة للسحب عند الإنشاء
   }).addTo(map);
 
-  // --- إنشاء العلامة القابلة للسحب ---
-  const dragMarker = L.marker(e.latlng, {
-    draggable: true,
-    icon: L.divIcon({ className: 'invisible-drag-marker', iconSize: [0, 0] })
-  }).addTo(map);
-
-  // --- ربط حركة العلامة بتحريك الدائرة ---
-  dragMarker.on('drag', function() {
-    const newLatLng = dragMarker.getLatLng();
-    circle.setLatLng(newLatLng);
-  });
-
-  dragMarker.on('dragend', function() {
-    const newLatLng = dragMarker.getLatLng();
-    circle.data.lat = newLatLng.lat;
-    circle.data.lng = newLatLng.lng;
-  });
-
-  // --- تهيئة البيانات ---
   circle.data = { name: '', security: '', notes: '', lat: e.latlng.lat, lng: e.latlng.lng };
-  circle._dragMarker = dragMarker;
   circles.push(circle);
   attachEvents(circle);
-  createEditPopup(circle); // فتح نافذة الإدخال مباشرة
+  createEditPopup(circle);
 });
 
 // ========================
