@@ -12,8 +12,8 @@
     <h3>لوحة التحكم</h3>
 
     <div class="panel">
-      <button id="addCircleBtn">➕ إضافة موقع</button>
-      <button id="shareBtn">📤 مشاركة الخريطة</button>
+      <button id="addCircleBtn" class="btn btn-primary">➕ إضافة موقع</button>
+      <button id="shareBtn" class="btn">📤 مشاركة الخريطة</button>
       <p class="hint">مرر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
     </div>
 
@@ -56,8 +56,8 @@
         <label class="chk"><input id="ed-editable" type="checkbox" /> تغيير الحجم</label>
       </div>
 
-      <button id="dupBtn" class="danger alt">نسخ الدائرة</button>
-      <button id="delBtn" class="danger">حذف الدائرة</button>
+      <button id="dupBtn" class="btn btn-dark">نسخ الدائرة</button>
+      <button id="delBtn" class="btn btn-danger" disabled>حذف الدائرة</button>
     </div>
 
     <div id="emptyState" class="panel">لا توجد دائرة محددة. اضغط على أي دائرة لبدء التحرير.</div>
@@ -65,7 +65,7 @@
 
   <!-- الخريطة -->
   <div id="map" aria-label="الخريطة">
-    <!-- ✅ لوحة الطبقات داخل الخريطة -->
+    <!-- ✅ لوحة الطبقات داخل الخريطة (أعلى يسار) -->
     <div id="layersControl" class="layers-control" dir="rtl">
       <div class="lc-head">
         <span>الطبقات</span>
@@ -88,7 +88,7 @@
     </div>
   </div>
 
-  <!-- ضع مفتاحك هنا -->
+  <!-- ضع مفتاح Google هنا -->
   <script
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly"
     defer
