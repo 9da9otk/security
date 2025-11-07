@@ -74,8 +74,8 @@ const addCircleBtn = document.getElementById('addCircleBtn');
 const shareBtn = document.getElementById('shareBtn');
 if(isViewMode){sidebar?.classList.add('hidden');map.dragging.enable();map.scrollWheelZoom.enable();}
 
-let circles=[];            // دوائر
-const anchors=new Map();   // مرساة لكل دائرة (Marker شفاف)
+let circles=[];              // دوائر
+const anchors=new Map();     // مرساة لكل دائرة (Marker شفاف)
 let addMode=false;
 
 /* ========================
@@ -100,8 +100,16 @@ function tooltipHtml(d){
 /* ===== حساب موضع المرساة (أعلى حافة الدائرة) ===== */
 function topEdgeLatLng(circle){
   const center=circle.getLatLng();
-  const ne=circle.getBounds().getNorthEast(); // حد الصندوق من الأعلى
-  return L.latLng(ne.lat, center.lng);        // نفس خط الطول (منتصف أعلى الحافة)
+  const ne=circle.getBounds().getNorthEast(); // أعلى الصندوق المحيط
+  return L.latLng(ne.lat, center.lng);        // نقطة في أعلى الحافة
+}
+
+/* افتح تولتيب هذا الـ anchor وأغلق البقية */
+function openOnlyThis(anchor){
+  anchors.forEach(a=>{
+    if(a!==anchor){ const tt=a.getTooltip(); if(tt) tt.close(); }
+  });
+  anchor.openTooltip();
 }
 
 /* ===== إنشاء/تحديث المرساة وربط الكرت بها ===== */
@@ -112,17 +120,27 @@ function ensureAnchor(circle){
   if(!anchor){
     anchor=L.marker(topEdgeLatLng(circle),{
       opacity:0,             // غير مرئي
-      interactive:false,     // لا يستقبل تفاعل
+      interactive:true,      // حتى يلتقط النقر إذا لزم
       keyboard:false
     }).addTo(map);
 
     anchor.bindTooltip(html,{
       className:'custom-tooltip',
       direction:'top',
-      offset:[0,-8],         // قرب جداً من الحافة
-      permanent:false,
-      interactive:true
+      offset:[0,-6],                     // ملاصق جداً
+      permanent: isViewMode,             // في وضع العرض يكون دائم
+      interactive:true,
+      sticky:false
     });
+
+    // في وضع العرض افتحه مباشرة
+    if(isViewMode){
+      // افتح أول ما يضاف
+      anchor.once('add', ()=> anchor.openTooltip());
+    }
+
+    // النقر على المرساة يفتح الكرت (ولو دائم سيبقى مفتوح)
+    anchor.on('click', ()=> openOnlyThis(anchor));
 
     anchors.set(circle._leaflet_id, anchor);
   }else{
@@ -227,25 +245,24 @@ window.saveCircleData=(btn,id)=>{
   const r =parseFloat(p.querySelector('#radius').value);
   c.data={name:n,security:s,notes:t,lat:c.getLatLng().lat,lng:c.getLatLng().lng};
   c.setStyle({color,fillColor,fillOpacity:op}); c.setRadius(r);
-  const a=ensureAnchor(c); const tt=a.getTooltip(); if(tt) tt.setContent(tooltipHtml(c.data));
-  a.setLatLng(topEdgeLatLng(c)); map.closePopup();
+
+  const a=ensureAnchor(c);
+  a.setLatLng(topEdgeLatLng(c));
+  const tt=a.getTooltip(); if(tt) tt.setContent(tooltipHtml(c.data));
+  a.update();
+  map.closePopup();
 };
 
 /* ========================
    ربط الأحداث
 ======================== */
 function attachEvents(circle){
-  // أنشئ/حدّث المرساة واربط التولتيب عليها
   const anchor=ensureAnchor(circle);
   wireAnchorRefresh(circle);
 
   if(isViewMode){
-    // فتح الكرت عند اللمس ورفع الدائرة للأمام
-    circle.on('click', ()=>{
-      circles.forEach(c=>c.setZIndexOffset(0));
-      circle.setZIndexOffset(1000);
-      anchor.openTooltip();
-    });
+    // افتح الكرت عند اللمس على الدائرة
+    circle.on('click', ()=> openOnlyThis(anchor));
   }else{
     circle.off('click');
     circle.on('click', e=>createEditPopup(e.target));
@@ -274,7 +291,13 @@ function loadFromUrl(){
       attachEvents(circle);
     });
 
-    if(circles.length){ anchors.get(circles[0]._leaflet_id)?.openTooltip(); circles[0].setZIndexOffset(1000); }
+    // افتح أول كرت تلقائياً في وضع العرض
+    if(circles.length){
+      const a=anchors.get(circles[0]._leaflet_id);
+      if(a){ openOnlyThis(a); }
+      circles[0].setZIndexOffset(1000);
+    }
+
     if(data.center){ map.setView([data.center.lat,data.center.lng], data.center.zoom||DEFAULT_ZOOM); }
   }catch(e){ console.warn('فشل تحميل الخريطة من الرابط:', e); }
 }
