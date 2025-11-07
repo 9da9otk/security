@@ -1,18 +1,15 @@
-/* أساسيات تخطيط */
 html, body {height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-color:transparent;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";}
 body{display:grid;grid-template-columns:300px 1fr;grid-template-rows:100vh;}
-@media (max-width: 900px){body{grid-template-columns:1fr}.sidebar{display:none}}
+@media (max-width:900px){body{grid-template-columns:1fr}.sidebar{display:none}}
 
 .view-mode{grid-template-columns:1fr!important}
 .view-mode #sidebar{display:none!important}
 .view-mode #map{position:fixed;inset:0;width:100vw;height:100svh}
 
-/* الخريطة */
 #map{position:relative;height:100vh;width:100%}
 @supports(height:100svh){#map{height:100svh}}
 
-/* الشريط الجانبي */
 .sidebar{box-sizing:border-box;padding:16px;background:#fff;border-left:1px solid #eee;overflow:auto}
 .sidebar h3{margin:0 0 12px;font-size:20px}
 .panel{padding:12px;border:1px solid #eee;border-radius:10px;margin-bottom:12px;background:#fafafa}
@@ -26,19 +23,17 @@ body{display:grid;grid-template-columns:300px 1fr;grid-template-rows:100vh;}
 .panel input[type="text"], .panel textarea, .panel input[type="number"]{
   width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd4dc;border-radius:10px;font-size:14px;background:#fff}
 
-/* أزرار واضحة بتباين عالي */
 .btn{width:100%;padding:12px;border:1px solid #1f2937;background:#1f2937;color:#fff;cursor:pointer;border-radius:10px;font-size:14px;margin-top:10px}
-.btn:hover{filter:brightness(0.95)}
-.btn-primary{background:#0f766e;border-color:#0f766e}      /* أخضر غامق */
-.btn-dark{background:#374151;border-color:#374151}        /* رمادي داكن */
-.btn-danger{background:#b91c1c;border-color:#b91c1c}      /* أحمر واضح */
+.btn:hover{filter:brightness(.95)}
+.btn-primary{background:#0f766e;border-color:#0f766e}
+.btn-dark{background:#374151;border-color:#374151}
+.btn-danger{background:#b91c1c;border-color:#b91c1c}
 .btn:disabled{background:#cbd5e1;border-color:#cbd5e1;color:#475569;cursor:not-allowed}
 
-/* شبكة صغيرة */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px}
 
-/* كرت المعلومات داخل InfoWindow */
+/* كرت المعلومات */
 .info-card{background:#1f2937;color:#fff;border-radius:12px;padding:12px 14px;min-width:260px;max-width:420px;
   font-size:15px;line-height:1.75}
 .info-card .tt-title{font-size:17px;font-weight:800;margin:0 0 6px}
@@ -47,23 +42,17 @@ body{display:grid;grid-template-columns:300px 1fr;grid-template-rows:100vh;}
 .info-card .name-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl}
 .info-card .tt-notes{color:#d1d5db;margin-top:6px;white-space:pre-line}
 
-/* ✅ لوحة الطبقات – أعلى يسار الخريطة */
-.layers-control{
-  position:absolute;               /* داخل #map فقط */
-  top:12px; inset-inline-start:12px;
-  z-index:100000;                  /* أعلى من عناصر Google */
+/* لوحة الطبقات كـ Google Control (نستهدف العنصر الذي سنبنيه برمجياً) */
+.godj-layers{
   background:#fff;border:1px solid #e5e7eb;border-radius:12px;
   padding:10px 12px;width:230px;box-shadow:0 10px 30px rgba(0,0,0,.12);font-size:14px;
 }
-.lc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.lc-body{display:block}
-.layers-control.min .lc-body{display:none}
-.layers-control .lc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
-.layers-control select{flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:14px}
-.layers-control .chk{display:flex;align-items:center;gap:8px;margin:6px 0}
-@media (max-width: 480px){
-  .layers-control{width: 200px; top: 10px; inset-inline-start:10px; padding: 8px 10px;}
-}
+.godj-layers .lc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.godj-layers .lc-body{display:block}
+.godj-layers.min .lc-body{display:none}
+.godj-layers .lc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.godj-layers select{flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:14px}
+.godj-layers .chk{display:flex;align-items:center;gap:8px;margin:6px 0}
 
 /* مؤشر وضع الإضافة */
-.add-cursor { cursor: crosshair !important; }
+.add-cursor{cursor:crosshair!important}
