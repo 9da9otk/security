@@ -3,28 +3,90 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>خريطة الأمن</title>
-
-  <!-- لا نحتاج Leaflet CSS هنا -->
+  <title>خريطة الأمن – Google Maps</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- الشريط الجانبي (يُخفى تلقائياً في وضع العرض) -->
   <div id="sidebar" class="sidebar">
     <h3>لوحة التحكم</h3>
-    <button id="addCircleBtn">➕ إضافة موقع</button>
-    <button id="shareBtn">📤 مشاركة الخريطة</button>
-    <p class="hint">تلميح: مرر الماوس على الدائرة لعرض الكرت. (على الجوال: اضغط)</p>
+
+    <div class="panel">
+      <button id="addCircleBtn">➕ إضافة موقع</button>
+      <button id="shareBtn">📤 مشاركة الخريطة</button>
+      <p class="hint">مرر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
+    </div>
+
+    <!-- نموذج تحرير الدائرة المحددة -->
+    <div id="editor" class="panel hidden">
+      <div class="panel-header">
+        <strong>تحرير الدائرة</strong>
+        <button id="closeEditor" class="icon-btn" title="إغلاق">×</button>
+      </div>
+
+      <label>اسم الموقع</label>
+      <input id="ed-name" type="text" placeholder="مثال: دوار البجيري" />
+
+      <label>أفراد الأمن (كل اسم في سطر)</label>
+      <textarea id="ed-security" rows="4" placeholder="اكتب كل اسم في سطر"></textarea>
+
+      <label>ملاحظات</label>
+      <textarea id="ed-notes" rows="3" placeholder="ملاحظات..."></textarea>
+
+      <div class="grid2">
+        <div>
+          <label>لون الحدود</label>
+          <input id="ed-stroke" type="color" value="#7c3aed" />
+        </div>
+        <div>
+          <label>لون التعبئة</label>
+          <input id="ed-fill" type="color" value="#c084fc" />
+        </div>
+      </div>
+
+      <label>شفافية التعبئة: <span id="op-val">0.35</span></label>
+      <input id="ed-opacity" type="range" min="0" max="1" step="0.05" value="0.35" />
+
+      <label>نصف القطر (م): <span id="radius-val">100</span></label>
+      <input id="ed-radius" type="range" min="10" max="1000" step="10" value="100" />
+      <input id="ed-radius-num" type="number" min="10" step="10" value="100" />
+
+      <div class="grid2">
+        <label class="chk"><input id="ed-draggable" type="checkbox" /> سحب الدائرة</label>
+        <label class="chk"><input id="ed-editable" type="checkbox" /> تغيير الحجم</label>
+      </div>
+
+      <button id="dupBtn" class="danger alt">نسخ الدائرة</button>
+      <button id="delBtn" class="danger">حذف الدائرة</button>
+    </div>
+
+    <div id="emptyState" class="panel">لا توجد دائرة محددة. اضغط على أي دائرة لبدء التحرير.</div>
   </div>
 
+  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- ✅ هنا تضع مفتاح Google Maps -->
+  <!-- ✅ صندوق الطبقات العائم (يظهر في التحرير والعرض) -->
+  <div id="layersControl" class="layers-control" dir="rtl">
+    <div class="lc-row">
+      <label for="basemapSelect">نوع الخريطة</label>
+      <select id="basemapSelect">
+        <option value="roadmap">افتراضي</option>
+        <option value="satellite">صور فضائية</option>
+        <option value="hybrid">هجينة (صور + أسماء)</option>
+        <option value="terrain">تضاريس</option>
+      </select>
+    </div>
+    <label class="chk"><input type="checkbox" id="trafficToggle"> حركة المرور</label>
+    <label class="chk"><input type="checkbox" id="transitToggle"> النقل العام</label>
+    <label class="chk"><input type="checkbox" id="bicyclingToggle"> مسارات الدراجات</label>
+  </div>
+
+  <!-- ضع مفتاحك هنا -->
   <script
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly"
     defer
   ></script>
-
-  <!-- كودك -->
   <script src="js/main.js"></script>
 </body>
 </html>
