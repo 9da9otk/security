@@ -7,17 +7,15 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- الشريط الجانبي -->
   <div id="sidebar" class="sidebar">
     <h3>لوحة التحكم</h3>
 
     <div class="panel">
       <button id="addCircleBtn" class="btn btn-primary">➕ إضافة موقع</button>
       <button id="shareBtn" class="btn">📤 مشاركة الخريطة</button>
-      <p class="hint">مرر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
+      <p class="hint">مرّر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
     </div>
 
-    <!-- محرر الدائرة -->
     <div id="editor" class="panel hidden">
       <div class="panel-header">
         <strong>تحرير الدائرة</strong>
@@ -64,31 +62,9 @@
   </div>
 
   <!-- الخريطة -->
-  <div id="map" aria-label="الخريطة">
-    <!-- ✅ لوحة الطبقات داخل الخريطة (أعلى يسار) -->
-    <div id="layersControl" class="layers-control" dir="rtl">
-      <div class="lc-head">
-        <span>الطبقات</span>
-        <button id="toggleLayers" class="icon-btn small" title="طي/فتح">▾</button>
-      </div>
-      <div class="lc-body">
-        <div class="lc-row">
-          <label for="basemapSelect">نوع الخريطة</label>
-          <select id="basemapSelect">
-            <option value="roadmap">افتراضي</option>
-            <option value="satellite">صور فضائية</option>
-            <option value="hybrid">هجينة</option>
-            <option value="terrain">تضاريس</option>
-          </select>
-        </div>
-        <label class="chk"><input type="checkbox" id="trafficToggle"> حركة المرور</label>
-        <label class="chk"><input type="checkbox" id="transitToggle"> النقل العام</label>
-        <label class="chk"><input type="checkbox" id="bicyclingToggle"> مسارات الدراجات</label>
-      </div>
-    </div>
-  </div>
+  <div id="map" aria-label="الخريطة"></div>
 
-  <!-- ضع مفتاح Google هنا -->
+  <!-- مفتاح Google -->
   <script
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly"
     defer
