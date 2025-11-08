@@ -82,4 +82,3 @@ body[data-mode="edit"] #editorPanel{display:block!important}
 
 /* ضمان أن الخريطة لا تغطي اللوحة */
 .gm-style{z-index:1}
-
