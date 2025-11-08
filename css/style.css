@@ -1,10 +1,8 @@
-/* أساسيات */
 html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-color:transparent;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";}
 #map{position:relative;height:100vh;width:100%}
 @supports(height:100svh){#map{height:100svh}}
 
-/* Drawer التحرير: ثابت يمين، عرض أنيق */
 .sidebar{
   position:fixed; inset-block:16px; inset-inline-end:16px;
   width:360px; max-width:92vw;
@@ -15,12 +13,9 @@ html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-col
 }
 .sidebar.open{ transform:translateX(0); }
 
-.backdrop{
-  position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100005;
-}
+.backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:100005; }
 .hidden{ display:none!important; }
 
-/* زر ثابت أسفل يسار */
 .mobile-toggle{
   position:fixed; inset-inline-start:12px; inset-block-end:16px;
   z-index:100015; border:none; background:#111827; color:#fff;
@@ -28,7 +23,6 @@ html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-col
   cursor:pointer;
 }
 
-/* بطاقات/حقول */
 .sidebar h3{margin:0 0 12px;font-size:20px}
 .panel{padding:12px;border:1px solid #eee;border-radius:10px;margin-bottom:12px;background:#fafafa}
 .panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
@@ -38,7 +32,6 @@ html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-col
 .panel input[type="text"], .panel textarea, .panel input[type="number"]{
   width:100%;box-sizing:border-box;padding:10px;border:1px solid #cfd4dc;border-radius:10px;font-size:14px;background:#fff}
 
-/* أزرار واضحة */
 .btn{width:100%;padding:12px;border:1px solid #1f2937;background:#1f2937;color:#fff;cursor:pointer;border-radius:10px;font-size:14px;margin-top:10px}
 .btn:hover{filter:brightness(.95)}
 .btn-primary{background:#0f766e;border-color:#0f766e}
@@ -46,7 +39,6 @@ html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-col
 .btn-danger{background:#b91c1c;border-color:#b91c1c}
 .btn:disabled{background:#cbd5e1;border-color:#cbd5e1;color:#475569;cursor:not-allowed}
 
-/* كرت المعلومات */
 .info-card{background:#1f2937;color:#fff;border-radius:12px;padding:12px 14px;min-width:260px;max-width:420px;
   font-size:15px;line-height:1.75}
 .info-card .tt-title{font-size:17px;font-weight:800;margin:0 0 6px}
@@ -55,14 +47,20 @@ html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-col
 .info-card .name-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl}
 .info-card .tt-notes{color:#d1d5db;margin-top:6px;white-space:pre-line}
 
-/* مؤشر وضع الإضافة */
 .add-cursor{cursor:crosshair!important}
 
-/* لوحة الطبقات كعنصر Google Control */
+.add-hint{
+  position:fixed; inset-inline:50% auto; transform:translateX(-50%);
+  inset-block-start:12px; padding:10px 14px; border-radius:999px;
+  background:#111827; color:#fff; z-index:100030; box-shadow:0 8px 24px rgba(0,0,0,.25);
+  font-size:14px; pointer-events:none;
+}
+
+/* صندوق الطبقات */
 .godj-layers{
   background:#fff;border:1px solid #e5e7eb;border-radius:12px;
   padding:10px 12px;width:230px;box-shadow:0 10px 30px rgba(0,0,0,.12);
-  font-size:14px; z-index:100020; /* أعلى من عناصر الخريطة */
+  font-size:14px; z-index:100020;
 }
 .godj-layers .lc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer}
 .godj-layers .lc-title{display:flex;align-items:center;gap:8px}
