@@ -4,18 +4,32 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>خريطة الأمن – عرض</title>
+
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self' https://maps.googleapis.com https://maps.gstatic.com 'unsafe-inline';
+                 style-src 'self' 'unsafe-inline';
+                 img-src 'self' data: https://*.googleapis.com https://*.gstatic.com https://maps.gstatic.com https://maps.googleapis.com;
+                 connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com;
+                 frame-ancestors 'none'">
+
   <link rel="stylesheet" href="css/style.css" />
-  <style>
-    /* تأكيد عدم ظهور أي عناصر تحرير في هذه الصفحة */
-    .sidebar, .mobile-toggle, .backdrop, .add-hint { display: none !important; }
-  </style>
+  <!-- إخفاء أي عناصر تحرير بشكل قاطع في صفحة العرض -->
+  <style>.sidebar,.mobile-toggle,.backdrop,.add-hint{display:none!important}</style>
 </head>
 <body>
   <!-- الخريطة فقط -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- خرائط قوقل: ضع نفس المفتاح -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly" defer></script>
+  <noscript>يجب تفعيل JavaScript لعرض الخرائط.</noscript>
+
+  <!-- مكتبة خرائط Google (مفتاحك مضمن) -->
+  <script
+    async
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly&loading=async">
+  </script>
+
+  <!-- منطق العرض فقط -->
   <script src="js/view.js"></script>
 </body>
 </html>
