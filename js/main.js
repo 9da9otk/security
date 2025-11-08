@@ -13,7 +13,11 @@ const urlParams = new URLSearchParams(location.search);
 const isViewMode = urlParams.has('view') || (location.hash||"").includes("view=");
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.body.classList.toggle('view-mode', isViewMode);
+  // في وضع العرض نخفي زر التحرير واللوحة
+  if (isViewMode) {
+    document.getElementById('mobileToggle')?.classList.add('hidden');
+    document.getElementById('sidebar')?.classList.remove('open');
+  }
 });
 
 /* ===== ترميز/فك ترميز ===== */
@@ -78,6 +82,7 @@ function createCircleAt(latLng){
 const ed={};
 function cacheEditorEls(){
   ed.sidebar=document.getElementById('sidebar');
+  ed.backdrop=document.getElementById('drawerBackdrop');
   ed.mobileToggle=document.getElementById('mobileToggle');
 
   ed.wrap=document.getElementById('editor');
@@ -100,14 +105,11 @@ function cacheEditorEls(){
   ed.del=document.getElementById('delBtn');
 }
 
-/* فتح/غلق لوحة الجوال */
-function openDrawer(){ ed.sidebar?.classList.add('open'); }
-function closeDrawer(){ ed.sidebar?.classList.remove('open'); }
-function autoOpenDrawerIfMobile(){
-  if (window.matchMedia('(max-width: 900px)').matches && !isViewMode) openDrawer();
-}
+/* فتح/غلق اللوحة */
+function openDrawer(){ ed.sidebar?.classList.add('open'); ed.backdrop?.classList.remove('hidden'); }
+function closeDrawer(){ ed.sidebar?.classList.remove('open'); ed.backdrop?.classList.add('hidden'); }
 
-/* تحديث المحرر من الدائرة */
+/* تحديث المحرر */
 function updateEditorFromCircle(c){
   const has=!!c; if(ed.del) ed.del.disabled=!has;
   if(!c){ed.wrap.classList.add('hidden');ed.empty.classList.remove('hidden');return;}
@@ -120,15 +122,12 @@ function updateEditorFromCircle(c){
   ed.draggable.checked=!!c.getDraggable?.()||c.get('draggable'); ed.editable.checked=!!c.getEditable?.()||c.get('editable');
 }
 
-/* ربط أحداث المحرر */
+/* أحداث المحرر */
 function bindEditorEvents(){
-  ed.close?.addEventListener('click',()=>{selectCircle(null); closeDrawer();});
+  ed.mobileToggle?.addEventListener('click', ()=> openDrawer());
+  ed.backdrop?.addEventListener('click', ()=> closeDrawer());
+  ed.close?.addEventListener('click', ()=> { selectCircle(null); closeDrawer(); });
 
-  ed.mobileToggle?.addEventListener('click', ()=>{
-    if (ed.sidebar?.classList.contains('open')) closeDrawer(); else openDrawer();
-  });
-
-  // أخفِ زر الجوال في وضع العرض
   if (isViewMode && ed.mobileToggle) ed.mobileToggle.style.display = 'none';
 
   ed.name?.addEventListener('input',()=>{if(!activeCircle)return;activeCircle.__data.name=ed.name.value.trim();ensureInfoWindow(activeCircle);});
@@ -144,7 +143,7 @@ function bindEditorEvents(){
   ed.editable?.addEventListener('change',()=>{if(!activeCircle)return;activeCircle.setEditable?.(ed.editable.checked);});
   ed.dup?.addEventListener('click',()=>{if(!activeCircle)return;const ll=activeCircle.getCenter();const off=0.0006;const nl={lat:ll.lat()+((Math.random()-0.5)*off),lng:ll.lng()+((Math.random()-0.5)*off)};
     const nc=new google.maps.Circle({map,center:nl,radius:activeCircle.getRadius(),strokeColor:activeCircle.get('strokeColor'),strokeOpacity:1,strokeWeight:2,fillColor:activeCircle.get('fillColor'),fillOpacity:activeCircle.get('fillOpacity'),clickable:true,draggable:activeCircle.getDraggable?.(),editable:activeCircle.getEditable?.()});
-    nc.__id=Math.random().toString(36).slice(2); nc.__data={...activeCircle.__data}; wireCircleHover(nc); circles.push(nc); selectCircle(nc); autoOpenDrawerIfMobile();});
+    nc.__id=Math.random().toString(36).slice(2); nc.__data={...activeCircle.__data}; wireCircleHover(nc); circles.push(nc); selectCircle(nc); openDrawer();});
   ed.del?.addEventListener('click',()=>{if(!activeCircle)return;if(!confirm('هل تريد حذف هذه الدائرة؟'))return;const i=circles.indexOf(activeCircle);if(i>-1)circles.splice(i,1);const iw=infoWindows.get(activeCircle.__id);if(iw)iw.close();activeCircle.setMap(null);infoWindows.delete(activeCircle.__id);selectCircle(null);});
 }
 
@@ -156,7 +155,7 @@ function selectCircle(circle){
   circle.addListener('center_changed',()=>ensureInfoWindow(circle));
   circle.addListener('radius_changed',()=>ensureInfoWindow(circle));
   circle.addListener('dragend',()=>ensureInfoWindow(circle));
-  autoOpenDrawerIfMobile();
+  openDrawer(); // عند التحديد افتح اللوحة
 }
 
 /* مشاركة/تحميل */
@@ -177,16 +176,19 @@ function loadFromUrl(){
   }catch(e){console.warn('فشل تحميل الخريطة من الرابط:',e);}
 }
 
-/* لوحة الطبقات كعنصر Google Control (اختصار) */
+/* لوحة الطبقات — قابلة للطيّ، وتُطوى تلقائيًا على الشاشات الصغيرة */
 function setupLayersControl(){
   const box=document.createElement('div');
   box.className='godj-layers';
+  const startMin = window.matchMedia('(max-width: 900px)').matches;
+  if (startMin) box.classList.add('min');
+
   box.innerHTML=`
-    <div class="lc-head">
-      <span>الطبقات</span>
-      <button id="lcToggle" class="icon-btn small" title="طي/فتح">▾</button>
+    <div class="lc-head" id="lcHead">
+      <div class="lc-title"><span>الطبقات</span></div>
+      <button id="lcToggle" class="lc-btn" title="طي/فتح">▾</button>
     </div>
-    <div class="lc-body">
+    <div class="lc-body" id="lcBody">
       <div class="lc-row">
         <label for="lcBase">نوع الخريطة</label>
         <select id="lcBase">
@@ -207,6 +209,7 @@ function setupLayersControl(){
   const tTransit=box.querySelector('#lcTransit');
   const tBike=box.querySelector('#lcBike');
   const toggle=box.querySelector('#lcToggle');
+  const head=box.querySelector('#lcHead');
 
   const trafficLayer=new google.maps.TrafficLayer();
   const transitLayer=new google.maps.TransitLayer();
@@ -216,7 +219,10 @@ function setupLayersControl(){
   tTraffic.addEventListener('change',()=>trafficLayer.setMap(tTraffic.checked?map:null));
   tTransit.addEventListener('change',()=>transitLayer.setMap(tTransit.checked?map:null));
   tBike.addEventListener('change',()=>bicyclingLayer.setMap(tBike.checked?map:null));
-  toggle.addEventListener('click',()=>box.classList.toggle('min'));
+
+  const toggleMin = ()=> box.classList.toggle('min');
+  toggle.addEventListener('click',toggleMin);
+  head.addEventListener('click',toggleMin); // النقر على العنوان أيضًا يطوي/يفتح
 }
 
 /* تهيئة الخريطة */
@@ -229,10 +235,11 @@ window.initMap=function(){
   cacheEditorEls();
   bindEditorEvents();
 
-  // أزرار الشريط العلوي
+  // أزرار إضافة/مشاركة
   document.getElementById('addCircleBtn')?.addEventListener('click',()=>{
     addMode=true;document.getElementById('map').classList.add('add-cursor');
     alert('انقر على الخريطة لوضع دائرة جديدة.');
+    openDrawer();
   });
   document.getElementById('shareBtn')?.addEventListener('click',shareMap);
 
