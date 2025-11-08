@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>خريطة الأمن – Google Maps</title>
 
-  <!-- ==== ترويسات أمان (نسخة داخلية في حال لم تُطبَّق ترويسات الخادم) ==== -->
+  <!-- أمان أساسي -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' https://maps.googleapis.com 'unsafe-inline';
@@ -16,12 +16,11 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="Referrer-Policy" content="no-referrer">
 
-  <!-- الأسلوب العام -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- الشريط الجانبي -->
-  <div id="sidebar" class="sidebar">
+  <!-- الشريط الجانبي / لوحة التحرير -->
+  <aside id="sidebar" class="sidebar">
     <h3>لوحة التحكم</h3>
 
     <div class="panel">
@@ -30,7 +29,6 @@
       <p class="hint">مرّر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
     </div>
 
-    <!-- محرر الدائرة -->
     <div id="editor" class="panel hidden">
       <div class="panel-header">
         <strong>تحرير الدائرة</strong>
@@ -74,19 +72,16 @@
     </div>
 
     <div id="emptyState" class="panel">لا توجد دائرة محددة. اضغط على أي دائرة لبدء التحرير.</div>
-  </div>
+  </aside>
 
-  <!-- الخريطة (لوحة الطبقات تُنشأ كـ Google Control من داخل main.js) -->
+  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- سكربت خرائط قوقل: استبدل YOUR_API_KEY -->
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly"
-    defer
-  ></script>
+  <!-- زر الجوال لفتح اللوحة -->
+  <button id="mobileToggle" class="mobile-toggle" aria-label="فتح لوحة التحرير">☰ تحرير</button>
 
-  <!-- منطق التطبيق -->
+  <!-- خرائط قوقل: استبدل YOUR_API_KEY -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly" defer></script>
   <script src="js/main.js"></script>
 </body>
 </html>
-
