@@ -3,65 +3,89 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن – فحص التحميل</title>
-
-  <!-- ستايل حرج للتأكد أن الخريطة تملأ الشاشة ولو تعطّل style.css -->
+  <title>خريطة الأمن – فحص سريع</title>
   <style>
-    html, body { height:100%; margin:0; background:#0b1320; color:#e6ebff; font-family: system-ui, "Segoe UI", Tahoma; }
-    #map { position:fixed; inset:0; }
-    /* بانر خطأ واضح إذا فشل تحميل خرائط Google */
-    #gmap-error {
-      position: fixed; inset: 0; display:none; place-items:center; text-align:center;
-      background: #1a2438;
-      padding: 24px; z-index: 99999;
-    }
-    #gmap-error .box{
-      max-width: 720px; border: 1px solid #f87171; background: #1f2937; border-radius: 14px;
-      padding: 20px; box-shadow: 0 10px 35px rgba(0,0,0,.35);
-    }
-    .badge { display:inline-block; padding: 3px 8px; border-radius: 999px; background:#334155; font-size:12px; }
+    html,body{height:100%;margin:0;background:#0b1320;color:#e6ebff;font-family:system-ui,"Segoe UI",Tahoma}
+    #map{position:fixed;inset:0}
+    #gmap-error{position:fixed;inset:0;display:none;place-items:center;text-align:center;background:#111827;padding:24px;z-index:99999}
+    #gmap-error .box{max-width:780px;border:1px solid #f87171;background:#1f2937;border-radius:14px;padding:20px;box-shadow:0 10px 35px rgba(0,0,0,.35)}
+    .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#334155;font-size:12px}
+    code{font-family:ui-monospace,Consolas,monaco;font-size:12px}
   </style>
 </head>
 <body>
-
-  <!-- خريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- بانر تشخيصي يظهر إذا فشل تحميل خرائط Google -->
+  <!-- بانر تشخيص إن فشل تحميل خرائط Google -->
   <div id="gmap-error">
     <div class="box">
       <h2 style="margin:0 0 8px">تعذّر تحميل خرائط Google</h2>
-      <p style="margin:0 0 12px; line-height:1.7">
-        السبب يكون عادة: <span class="badge">مفتاح API</span> أو <span class="badge">قيود Referrer</span> أو <span class="badge">عدم تفعيل Maps JavaScript API/الفوترة</span>.
+      <p style="margin:0 0 10px;line-height:1.7">
+        افحص: <span class="badge">API Key</span> ، <span class="badge">HTTP Referrers</span> ،
+        <span class="badge">تفعيل Maps JavaScript API</span> ، <span class="badge">الفوترة</span>.
       </p>
-      <div id="err-details" style="font-family:ui-monospace,Consolas; font-size:12px; opacity:.85"></div>
+      <div id="err-details" style="opacity:.85"><code></code></div>
     </div>
   </div>
 
-  <!-- سكربت التطبيق: يعرّف window.initMap قبل استدعاء callback -->
-  <script src="js/main.js"></script>
+  <script>
+    // نسجّل بوضوح في الـ Console
+    console.log('[BOOT] inline init starting…');
 
-  <!-- سكربت خرائط Google: استخدم async defer + callback -->
+    // مركز الدرعية
+    const DEFAULT_CENTER = { lat: 24.7408, lng: 46.5759 };
+    const DEFAULT_ZOOM   = 14;
+
+    // نعرّف initMap inline حتى لا نعتمد على js/main.js
+    window.initMap = function(){
+      try{
+        if(!window.google || !google.maps) throw new Error('google.maps غير متوفر أثناء initMap');
+        const map = new google.maps.Map(document.getElementById('map'), {
+          center: DEFAULT_CENTER,
+          zoom: DEFAULT_ZOOM,
+          mapTypeId: 'roadmap',
+          gestureHandling: 'greedy'
+        });
+        console.log('[OK] Google Maps loaded. Version:', google.maps.version);
+
+        // دائرة اختبار (15 م)
+        new google.maps.Circle({
+          map,
+          center: DEFAULT_CENTER,
+          radius: 15,
+          strokeColor: '#7c3aed',
+          strokeOpacity: 1,
+          strokeWeight: 2,
+          fillColor: '#a78bfa',
+          fillOpacity: 0.25
+        });
+      }catch(e){
+        const b=document.getElementById('gmap-error'); b.style.display='grid';
+        document.getElementById('err-details').firstChild.textContent = 'initMap error: ' + (e?.message||e);
+        console.error('[initMap] Error:', e);
+      }
+    };
+
+    // أمان إضافي: إذا تأخر سكربت Google نظهر رسالة بعد 6 ثواني
+    setTimeout(function(){
+      if(!window.google || !google.maps){
+        const b=document.getElementById('gmap-error'); b.style.display='grid';
+        document.getElementById('err-details').firstChild.textContent =
+          'google.maps لم تُحمّل (Timeout). افتح Console وافحص Network لرسالة مثل RefererNotAllowedMapError.';
+      }
+    }, 6000);
+  </script>
+
+  <!-- سكربت خرائط Google بمفتاحك -->
   <script
     id="gmap-script"
     async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&libraries=geometry&v=weekly&callback=initMap"
     onerror="(function(){
       const b=document.getElementById('gmap-error'); b.style.display='grid';
-      document.getElementById('err-details').textContent='Network/Script load failed (onerror).';
+      document.getElementById('err-details').firstChild.textContent='Network/Script load failed (onerror).';
       console.error('Google Maps JS failed to load.');
     })();">
-  </script>
-
-  <!-- حماية إضافية: إن مرّت 5 ثواني ولم تُعرّف google.maps نظهر التشخيص -->
-  <script>
-    setTimeout(function(){
-      if (!window.google || !google.maps) {
-        const b=document.getElementById('gmap-error'); b.style.display='grid';
-        const el=document.getElementById('err-details');
-        el.textContent = 'google.maps لم تُحمّل. افحص لوحة Console لرسالة مثل RefererNotAllowedMapError.';
-      }
-    }, 5000);
   </script>
 </body>
 </html>
