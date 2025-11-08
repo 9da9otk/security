@@ -9,7 +9,7 @@ const STYLE_STROKE = "#7c3aed";
 const STYLE_FILL   = "#c084fc";
 const STYLE_OPAC   = 0.25;
 
-/* نفس قائمة المواقع احتياطيًا إذا لم يوجد view= */
+/* قائمة احتياطية إذا لم يمرر view= */
 const DEFAULT_SITES = [
   { name:"بوابة سمحان",                         lat:24.742132284177778, lng:46.569503913805825 },
   { name:"منطقة سمحان",                         lat:24.74091335108621,  lng:46.571891407130025 },
@@ -50,18 +50,6 @@ function decodeData(encoded) {
   return expandData(JSON.parse(new TextDecoder().decode(bytes)));
 }
 
-/* لافتة اسم */
-function makeCenterLabel(position, text){
-  const el = document.createElement("div");
-  el.className = "circle-name-badge";
-  el.textContent = text || "بدون اسم";
-  return new google.maps.marker.AdvancedMarkerElement({
-    position, content: el,
-    collisionBehavior: google.maps.CollisionBehavior.REQUIRED,
-    zIndex: 1000
-  });
-}
-
 let map, infoWindow;
 
 window.initMap = function initMap() {
@@ -91,10 +79,14 @@ window.initMap = function initMap() {
 
 function infoHtml(d){
   return `
-    <h4>${escapeHtml(d.name || "بدون اسم")}</h4>
-    <span class="label">الأمن:</span>
-    <p class="names">${escapeHtml(d.security || "—").replace(/\n/g,"<br>")}</p>
-    ${d.notes ? `<div class="sep"></div><div>${escapeHtml(d.notes)}</div>` : ""}
+    <div class="infocard">
+      <div class="infocard-header">${escapeHtml(d.name || "بدون اسم")}</div>
+      <div class="infocard-body">
+        <div class="label">الأمن:</div>
+        <div class="names">${escapeHtml(d.security || "—").replace(/\n/g,"<br>")}</div>
+        ${d.notes ? `<div class="sep"></div><div class="notes">${escapeHtml(d.notes)}</div>` : ""}
+      </div>
+    </div>
   `;
 }
 
@@ -112,9 +104,6 @@ function draw(data){
       draggable: false,
       editable: false
     });
-
-    const label = makeCenterLabel(c.getCenter(), d.name);
-    label.map = map;
 
     c.addListener("mouseover", () => {
       infoWindow.setContent(infoHtml(d));
