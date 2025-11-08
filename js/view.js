@@ -1,6 +1,3 @@
-/* =========================
-   إعدادات العرض
-========================= */
 const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
 const DEFAULT_ZOOM   = 14;
 const DEFAULT_RADIUS = 15;
@@ -9,7 +6,6 @@ const STYLE_STROKE = "#7c3aed";
 const STYLE_FILL   = "#c084fc";
 const STYLE_OPAC   = 0.25;
 
-/* قائمة احتياطية إذا لم يمرر view= */
 const DEFAULT_SITES = [
   { name:"بوابة سمحان",                         lat:24.742132284177778, lng:46.569503913805825 },
   { name:"منطقة سمحان",                         lat:24.74091335108621,  lng:46.571891407130025 },
@@ -32,7 +28,6 @@ const DEFAULT_SITES = [
   { name:"مزرعة الحبيب",                        lat:24.709445443672344, lng:46.593971867951346 }
 ].map(s => ({ ...s, radius: DEFAULT_RADIUS, strokeColor: STYLE_STROKE, fillColor: STYLE_FILL, fillOpacity: STYLE_OPAC, security:"", notes:"" }));
 
-/* ترميز/فك ترميز */
 function expandData(obj) {
   return {
     center: { lat: obj.c?.L ?? DEFAULT_CENTER.lat, lng: obj.c?.G ?? DEFAULT_CENTER.lng, zoom: obj.c?.z ?? DEFAULT_ZOOM },
