@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>خريطة الأمن – Google Maps</title>
 
-  <!-- أمان أساسي (CSP مبسّط) -->
+  <!-- سياسة أمان مبسطة -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' https://maps.googleapis.com 'unsafe-inline';
@@ -19,17 +19,17 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- خلفية تغطية عند فتح اللوحة -->
-  <div id="drawerBackdrop" class="backdrop hidden"></div>
+  <!-- خلفية تغطية عند فتح لوحة التحرير -->
+  <div id="drawerBackdrop" class="backdrop hidden" aria-hidden="true"></div>
 
-  <!-- لوحة التحرير (Drawer دائمًا مخفية إلا عند الفتح) -->
-  <aside id="sidebar" class="sidebar">
+  <!-- لوحة التحرير (Drawer) -->
+  <aside id="sidebar" class="sidebar" aria-label="لوحة التحرير">
     <h3>لوحة التحكم</h3>
 
     <div class="panel">
       <button id="addCircleBtn" class="btn btn-primary">➕ إضافة موقع</button>
       <button id="shareBtn" class="btn">📤 مشاركة الخريطة</button>
-      <p class="hint">مرّر الماوس على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
+      <p class="hint">مرّر على الدائرة لعرض الكرت. على الجوال: اضغط.</p>
     </div>
 
     <div id="editor" class="panel hidden">
