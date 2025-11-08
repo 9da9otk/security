@@ -1,16 +1,17 @@
 /* أساسيات */
-html, body {height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-color:transparent;
+html,body{height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-color:transparent;
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";}
 #map{position:relative;height:100vh;width:100%}
 @supports(height:100svh){#map{height:100svh}}
 
-/* لا نعرض الشريط الجانبي تلقائيًا: دائماً Drawer */
+/* Drawer التحرير: ثابت يمين، عرض أنيق */
 .sidebar{
-  position:fixed; inset-block:0; inset-inline-end:0;
-  width:min(92vw, 420px); max-width:100%;
-  background:#fff; border-left:1px solid #e5e7eb; box-shadow:-10px 0 30px rgba(0,0,0,.15);
-  transform:translateX(100%); transition:transform .25s ease; z-index:100010;
-  padding:16px; overflow:auto; box-sizing:border-box;
+  position:fixed; inset-block:16px; inset-inline-end:16px;
+  width:360px; max-width:92vw;
+  background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+  box-shadow:0 20px 40px rgba(0,0,0,.18);
+  transform:translateX(calc(100% + 16px)); transition:transform .25s ease;
+  z-index:100010; padding:16px; overflow:auto; box-sizing:border-box;
 }
 .sidebar.open{ transform:translateX(0); }
 
@@ -57,21 +58,21 @@ html, body {height:100%;margin:0;padding:0;direction:rtl;-webkit-tap-highlight-c
 /* مؤشر وضع الإضافة */
 .add-cursor{cursor:crosshair!important}
 
-/* لوحة الطبقات كـ Google Control */
+/* لوحة الطبقات كعنصر Google Control */
 .godj-layers{
   background:#fff;border:1px solid #e5e7eb;border-radius:12px;
   padding:10px 12px;width:230px;box-shadow:0 10px 30px rgba(0,0,0,.12);
-  font-size:14px; z-index:100000; /* أعلى من عناصر الخريطة */
+  font-size:14px; z-index:100020; /* أعلى من عناصر الخريطة */
 }
 .godj-layers .lc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer}
 .godj-layers .lc-title{display:flex;align-items:center;gap:8px}
-.godj-layers .lc-btn{border:none;border-radius:8px;background:#e5e7eb;width:26px;height:26px;cursor:pointer}
+.godj-layers .lc-btn{border:none;border-radius:8px;background:#e5e7eb;width:26px;height:26px;cursor:pointer;transform:rotate(0deg);transition:transform .2s}
 .godj-layers .lc-body{display:block;margin-top:8px}
 .godj-layers.min .lc-body{display:none}
+.godj-layers.min .lc-btn{transform:rotate(-90deg)}
 .godj-layers .lc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .godj-layers select{flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fafafa;font-size:14px}
 
-/* على الشاشات الصغيرة: ابدأ مطويّة */
 @media (max-width: 900px){
   .godj-layers{width:200px}
   .godj-layers .lc-title span{font-size:13px}
