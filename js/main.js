@@ -1,297 +1,447 @@
-// ===== إعدادات عامة =====
+/* =========================
+   إعدادات عامة
+========================= */
+
 const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
 const DEFAULT_ZOOM   = 14;
+const DEFAULT_RADIUS = 15; // 👈 نصف القطر الافتراضي (م)
 
-let map;
-let addMode = false;
-const circles = [];
-const infoWindows = new Map();
-let activeCircle = null;
+const STYLE_STROKE = "#7c3aed";  // بنفسجي واضح للحدود
+const STYLE_FILL   = "#c084fc";  // بنفسجي فاتح للتعبئة
+const STYLE_OPAC   = 0.25;       // شفافية التعبئة
 
-// ===== أدوات ترميز/فك ترميز مضغوط =====
-function toBase64Url(bytes){let b="";bytes.forEach(x=>b+=String.fromCharCode(x));return btoa(b).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");}
-function fromBase64Url(s){let b=s.replace(/-/g,"+").replace(/_/g,"/");const p=b.length%4;if(p)b+="=".repeat(4-p);const bin=atob(b);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
-function compactData(data){return{c:data.center,r:data.circles.map(c=>({l:[c.center.lat,c.center.lng],r:c.radius,co:c.strokeColor,fc:c.fillColor,o:c.fillOpacity,n:c.name,s:c.security,t:c.notes}))};}
-function expandData(c){return{center:c.c,circles:c.r.map(x=>({center:{lat:x.l[0],lng:x.l[1]},radius:x.r,strokeColor:x.co,fillColor:x.fc,fillOpacity:x.o,name:x.n||'',security:x.s||'',notes:x.t||''}))};}
-function encodeData(d){const json=JSON.stringify(compactData(d));return toBase64Url(new TextEncoder().encode(json));}
+// جميع المواقع الافتراضية (بالاسم + الإحداثيات)
+const DEFAULT_SITES = [
+  { name:"بوابة سمحان",                         lat:24.742132284177778, lng:46.569503913805825 },
+  { name:"منطقة سمحان",                         lat:24.74091335108621,  lng:46.571891407130025 },
+  { name:"دوار البجيري",                        lat:24.737521801476476, lng:46.57406918772067  },
+  { name:"إشارة البجيري",                       lat:24.73766260194535,  lng:46.575429040147306 },
+  { name:"طريق الملك فيصل",                     lat:24.736133848943062, lng:46.57696607050239  },
+  { name:"نقطة فرز الشلهوب",                    lat:24.73523670533632,  lng:46.57785639752234  },
+  { name:"المسار الرياضي المديد",               lat:24.735301077804944, lng:46.58178092599035  },
+  { name:"ميدان الملك سلمان",                   lat:24.73611373368281,  lng:46.58407097038162  },
+  { name:"دوار الضوء الخافت",                   lat:24.739718342668006, lng:46.58352614787052  },
+  { name:"المسار الرياضي طريق الملك خالد الفرعي",lat:24.740797019998627, lng:46.5866145907347   },
+  { name:"دوار البلدية",                        lat:24.739266101368777, lng:46.58172727078356  },
+  { name:"مدخل ساحة البلدية الفرعي",            lat:24.738638518378387, lng:46.579858026042785 },
+  { name:"مدخل مواقف البجيري (كار بارك)",       lat:24.73826438056506,  lng:46.57789576275729  },
+  { name:"مواقف الامن",                         lat:24.73808736962705,  lng:46.57771858346317  },
+  { name:"دوار الروقية",                        lat:24.741985907266145, lng:46.56269186990043  },
+  { name:"بيت مبارك",                           lat:24.732609768937607, lng:46.57827089439368  },
+  { name:"دوار وادي صفار",                      lat:24.72491458984474,  lng:46.57345489743978  },
+  { name:"دوار راس النعامة",                    lat:24.710329841152387, lng:46.572921959358204 },
+  { name:"مزرعة الحبيب",                        lat:24.709445443672344, lng:46.593971867951346 }
+].map(s => ({ ...s, radius: DEFAULT_RADIUS, strokeColor: STYLE_STROKE, fillColor: STYLE_FILL, fillOpacity: STYLE_OPAC, security:"", notes:"" }));
 
-// ===== توليد رابط view.html فقط =====
-function buildViewUrl(encoded){
-  const base = `${location.origin}${location.pathname}`.replace(/index\.html$/,"");
-  return `${base}view.html#view=${encoded}`;
-}
-
-// ===== كرت المعلومات =====
-function escapeHtml(t){const d=document.createElement('div');d.textContent=t??'';return d.innerHTML;}
-function infoHtml(d){
-  const name  = escapeHtml(d?.name || 'نقطة مراقبة');
-  const lines = String(d?.security ?? '---').split(/\r?\n/).map(s=>escapeHtml(s.trim())).filter(Boolean);
-  return `<div class="info-card">
-    <div class="tt-title">${name}</div>
-    <div class="tt-label">الأمن:</div>
-    <div class="tt-names">${lines.length ? lines.map(s=>`<div class="name-line">${s}</div>`).join("") : `<div class="name-line">---</div>`}</div>
-    ${d?.notes ? `<div class="tt-notes">${escapeHtml(d.notes)}</div>` : ''}
-  </div>`;
-}
-function topEdgeLatLng(center, rMeters){
-  return google.maps.geometry.spherical.computeOffset(center, rMeters, 0);
-}
-function ensureInfoWindow(circle){
-  let iw = infoWindows.get(circle.__id);
-  const html = infoHtml(circle.__data);
-  const pos  = topEdgeLatLng(circle.getCenter(), circle.getRadius());
-  if (!iw){
-    iw = new google.maps.InfoWindow({ content: html, position: pos });
-    infoWindows.set(circle.__id, iw);
-  } else {
-    iw.setContent(html);
-    iw.setPosition(pos);
-  }
-  return iw;
-}
-function closeAllInfoWindows(except){
-  infoWindows.forEach(iw => { if (iw !== except) iw.close(); });
-}
-
-// ===== دوائر =====
-function wireCircleHover(circle){
-  const open = ()=>{ const iw=ensureInfoWindow(circle); closeAllInfoWindows(iw); iw.open({map}); };
-  const move = ()=>{ const iw=ensureInfoWindow(circle); iw.setPosition(topEdgeLatLng(circle.getCenter(),circle.getRadius())); };
-  const close= ()=>{ const iw=infoWindows.get(circle.__id); if(iw) iw.close(); };
-
-  circle.setOptions({ clickable:true });
-  circle.addListener('mouseover', open);
-  circle.addListener('mousemove', move);
-  circle.addListener('mouseout',  close);
-  circle.addListener('click', ()=>{ open(); selectCircle(circle); });
-}
-
-function createCircleAt(latLng){
-  const circle = new google.maps.Circle({
-    map, center:latLng, radius:100,
-    strokeColor:'#7c3aed', strokeOpacity:1, strokeWeight:2,
-    fillColor:'#c084fc', fillOpacity:0.35,
-    clickable:true, draggable:false, editable:false
-  });
-  circle.__id   = Math.random().toString(36).slice(2);
-  circle.__data = { name:'', security:'', notes:'' };
-  wireCircleHover(circle);
-  circles.push(circle);
-  selectCircle(circle);
-}
-
-// ===== عناصر واجهة التحرير =====
-const ed = {};
-function cacheEditorEls(){
-  ed.sidebar   = document.getElementById('sidebar');
-  ed.backdrop  = document.getElementById('drawerBackdrop');
-  ed.mobileBtn = document.getElementById('mobileToggle');
-
-  ed.wrap   = document.getElementById('editor');
-  ed.empty  = document.getElementById('emptyState');
-  ed.close  = document.getElementById('closeEditor');
-
-  ed.name     = document.getElementById('ed-name');
-  ed.security = document.getElementById('ed-security');
-  ed.notes    = document.getElementById('ed-notes');
-  ed.stroke   = document.getElementById('ed-stroke');
-  ed.fill     = document.getElementById('ed-fill');
-  ed.opacity  = document.getElementById('ed-opacity');
-  ed.opVal    = document.getElementById('op-val');
-  ed.radius   = document.getElementById('ed-radius');
-  ed.radiusNum= document.getElementById('ed-radius-num');
-  ed.radVal   = document.getElementById('radius-val');
-  ed.draggable= document.getElementById('ed-draggable');
-  ed.editable = document.getElementById('ed-editable');
-  ed.dup      = document.getElementById('dupBtn');
-  ed.del      = document.getElementById('delBtn');
-
-  ed.addHint  = document.getElementById('addHint');
-  ed.mapEl    = document.getElementById('map');
-}
-function openDrawer(){ ed.sidebar?.classList.add('open'); ed.backdrop?.classList.remove('hidden'); }
-function closeDrawer(){ ed.sidebar?.classList.remove('open'); ed.backdrop?.classList.add('hidden'); }
-
-function updateEditorFromCircle(c){
-  const has = !!c;
-  if (ed.del) ed.del.disabled = !has;
-  if (!c){ ed.wrap.classList.add('hidden'); ed.empty.classList.remove('hidden'); return; }
-  ed.empty.classList.add('hidden'); ed.wrap.classList.remove('hidden');
-
-  ed.name.value      = c.__data.name || '';
-  ed.security.value  = c.__data.security || '';
-  ed.notes.value     = c.__data.notes || '';
-  ed.stroke.value    = c.get('strokeColor') || '#7c3aed';
-  ed.fill.value      = c.get('fillColor')   || '#c084fc';
-  ed.opacity.value   = (typeof c.get('fillOpacity') === 'number') ? c.get('fillOpacity') : 0.35;
-  ed.opVal.textContent = ed.opacity.value;
-
-  const r = Math.round(c.getRadius());
-  ed.radius.value    = Math.min(Math.max(r, +ed.radius.min), +ed.radius.max);
-  ed.radiusNum.value = r;
-  ed.radVal.textContent = r;
-
-  ed.draggable.checked = !!c.get('draggable');
-  ed.editable.checked  = !!c.get('editable');
-}
-
-function bindEditorEvents(){
-  ed.mobileBtn?.addEventListener('click', ()=> openDrawer());
-  ed.backdrop ?.addEventListener('click', ()=> closeDrawer());
-  ed.close    ?.addEventListener('click', ()=> { selectCircle(null); closeDrawer(); });
-
-  ed.name?.addEventListener('input',()=>{ if(!activeCircle) return; activeCircle.__data.name = ed.name.value.trim(); ensureInfoWindow(activeCircle); });
-  ed.security?.addEventListener('input',()=>{ if(!activeCircle) return; activeCircle.__data.security = ed.security.value; ensureInfoWindow(activeCircle); });
-  ed.notes?.addEventListener('input',()=>{ if(!activeCircle) return; activeCircle.__data.notes = ed.notes.value; ensureInfoWindow(activeCircle); });
-  ed.stroke?.addEventListener('input',()=>{ if(!activeCircle) return; activeCircle.setOptions({strokeColor:ed.stroke.value}); ensureInfoWindow(activeCircle); });
-  ed.fill?.addEventListener('input',()=>{ if(!activeCircle) return; activeCircle.setOptions({fillColor:ed.fill.value}); ensureInfoWindow(activeCircle); });
-  ed.opacity?.addEventListener('input',()=>{ if(!activeCircle) return; const v=parseFloat(ed.opacity.value); ed.opVal.textContent=v.toFixed(2); activeCircle.setOptions({fillOpacity:v}); ensureInfoWindow(activeCircle); });
-
-  const applyRadius = v => {
-    if (!activeCircle) return;
-    const val = Math.max(10, Math.round(+v || 100));
-    activeCircle.setRadius(val);
-    ed.radius.value = val; ed.radiusNum.value = val; ed.radVal.textContent = val;
-    ensureInfoWindow(activeCircle);
-  };
-  ed.radius   ?.addEventListener('input', ()=> applyRadius(ed.radius.value));
-  ed.radiusNum?.addEventListener('input', ()=> applyRadius(ed.radiusNum.value));
-  ed.draggable?.addEventListener('change',()=>{ if(!activeCircle) return; activeCircle.setOptions({draggable:ed.draggable.checked}); });
-  ed.editable ?.addEventListener('change',()=>{ if(!activeCircle) return; activeCircle.setOptions({editable:ed.editable.checked}); });
-
-  ed.dup?.addEventListener('click',()=>{
-    if(!activeCircle) return;
-    const ll = activeCircle.getCenter(); const off = 0.0006;
-    const nl = { lat: ll.lat()+((Math.random()-0.5)*off), lng: ll.lng()+((Math.random()-0.5)*off) };
-    const nc = new google.maps.Circle({
-      map, center:nl, radius:activeCircle.getRadius(),
-      strokeColor:activeCircle.get('strokeColor'), strokeOpacity:1, strokeWeight:2,
-      fillColor:activeCircle.get('fillColor'), fillOpacity:activeCircle.get('fillOpacity'),
-      clickable:true, draggable:activeCircle.get('draggable'), editable:activeCircle.get('editable')
-    });
-    nc.__id = Math.random().toString(36).slice(2);
-    nc.__data = { ...activeCircle.__data };
-    wireCircleHover(nc); circles.push(nc); selectCircle(nc); openDrawer();
-  });
-
-  ed.del?.addEventListener('click',()=>{
-    if(!activeCircle) return;
-    if(!confirm('هل تريد حذف هذه الدائرة؟')) return;
-    const i = circles.indexOf(activeCircle);
-    if (i > -1) circles.splice(i,1);
-    const iw = infoWindows.get(activeCircle.__id); if(iw) iw.close();
-    activeCircle.setMap(null); infoWindows.delete(activeCircle.__id);
-    selectCircle(null);
-  });
-}
-
-function selectCircle(circle){
-  activeCircle = circle;
-  updateEditorFromCircle(circle);
-  if(!circle) return;
-  const iw = ensureInfoWindow(circle); closeAllInfoWindows(iw); iw.open({map});
-  circle.addListener('center_changed', ()=> ensureInfoWindow(circle));
-  circle.addListener('radius_changed', ()=> ensureInfoWindow(circle));
-  circle.addListener('dragend',        ()=> ensureInfoWindow(circle));
-  openDrawer();
-}
-
-// ===== مشاركة =====
-function shareMap(){
-  const data = {
-    center: { lat: map.getCenter().lat(), lng: map.getCenter().lng(), zoom: map.getZoom() },
-    circles: circles.map(c => ({
-      center:{ lat: c.getCenter().lat(), lng: c.getCenter().lng() },
-      radius:c.getRadius(),
-      strokeColor:c.get('strokeColor'),
-      fillColor:c.get('fillColor'),
-      fillOpacity:c.get('fillOpacity'),
-      name:c.__data?.name || '',
-      security:c.__data?.security || '',
-      notes:c.__data?.notes || ''
+/* =========================
+   ترميز/فك ترميز للمشاركة
+========================= */
+function compactData(data) {
+  return {
+    c: { L: data.center.lat, G: data.center.lng, z: data.center.zoom },
+    r: data.circles.map(c => ({
+      L: c.lat, G: c.lng, d: c.radius,
+      sc: c.strokeColor, fc: c.fillColor, fo: c.fillOpacity,
+      n: c.name, s: c.security, t: c.notes
     }))
   };
-  try{
-    const encoded = encodeData(data);
-    const url = buildViewUrl(encoded); // <<— رابط عرض فقط
-    if (navigator.share){
-      navigator.share({ title: document.title, url }).catch(()=>{
-        navigator.clipboard.writeText(url).then(()=> alert('تم نسخ رابط الخريطة!'));
-      });
-    } else {
-      navigator.clipboard.writeText(url).then(()=> alert('تم نسخ رابط الخريطة!'));
+}
+function expandData(obj) {
+  return {
+    center: { lat: obj.c?.L ?? DEFAULT_CENTER.lat, lng: obj.c?.G ?? DEFAULT_CENTER.lng, zoom: obj.c?.z ?? DEFAULT_ZOOM },
+    circles: (obj.r ?? []).map(e => ({
+      lat: e.L, lng: e.G, radius: e.d ?? DEFAULT_RADIUS,
+      strokeColor: e.sc ?? STYLE_STROKE, fillColor: e.fc ?? STYLE_FILL, fillOpacity: e.fo ?? STYLE_OPAC,
+      name: e.n || "", security: e.s || "", notes: e.t || ""
+    }))
+  };
+}
+function encodeData(data) {
+  const json = JSON.stringify(compactData(data));
+  const bytes = new TextEncoder().encode(json);
+  let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+function decodeData(encoded) {
+  const bin = atob(encoded);
+  const bytes = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return expandData(JSON.parse(new TextDecoder().decode(bytes)));
+}
+
+/* =========================
+   حالة التطبيق + مراجع DOM
+========================= */
+let map, infoWindow;
+let circles = [];     // [{ circle, label, __data }]
+let selected = null;
+
+const $ = s => document.querySelector(s);
+const edName       = () => $("#ed-name");
+const edSecurity   = () => $("#ed-security");
+const edNotes      = () => $("#ed-notes");
+const edStroke     = () => $("#ed-stroke");
+const edFill       = () => $("#ed-fill");
+const edOpacity    = () => $("#ed-opacity");
+const edRadius     = () => $("#ed-radius");
+const edRadiusNum  = () => $("#ed-radius-num");
+const edDraggable  = () => $("#ed-draggable");
+const edEditable   = () => $("#ed-editable");
+
+/* =========================
+   إنشاء لافتة اسم داخل الدائرة (AdvancedMarker)
+========================= */
+function makeCenterLabel(position, text){
+  const el = document.createElement("div");
+  el.className = "circle-name-badge";
+  el.textContent = text || "بدون اسم";
+  const marker = new google.maps.marker.AdvancedMarkerElement({
+    position,
+    content: el,
+    collisionBehavior: google.maps.CollisionBehavior.REQUIRED,
+    zIndex: 1000
+  });
+  return marker;
+}
+
+/* =========================
+   خريطة Google
+========================= */
+window.initMap = function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: DEFAULT_CENTER,
+    zoom: DEFAULT_ZOOM,
+    mapId: "DIRIYAH_SECURITY_MAP",
+    gestureHandling: "greedy",
+    fullscreenControl: true
+  });
+  infoWindow = new google.maps.InfoWindow({});
+
+  // تحميل من رابط أو افتراضي
+  const url = new URL(location.href);
+  const view = url.searchParams.get("view");
+  if (view) {
+    try {
+      const data = decodeData(decodeURIComponent(view));
+      renderFromData(data);
+      map.setCenter({lat: data.center.lat, lng: data.center.lng});
+      map.setZoom(data.center.zoom);
+    } catch(e){
+      console.error("فشل التحميل من الرابط:", e);
+      seedDefaults();
     }
-  }catch(e){
-    console.error('فشل إنشاء الرابط:', e);
-    alert('حدث خطأ أثناء إنشاء الرابط.');
+  } else {
+    seedDefaults();
   }
-}
 
-// ===== لوحة الطبقات =====
-function setupLayersControl(){
-  const box = document.createElement('div');
-  box.className = 'godj-layers min';
-  box.innerHTML = `
-    <div class="lc-head" id="lcHead" title="الطبقات">الطبقات</div>
-    <div class="lc-body" id="lcBody">
-      <div class="lc-row">
-        <label for="lcBase">نوع الخريطة</label>
-        <select id="lcBase">
-          <option value="roadmap">افتراضي</option>
-          <option value="satellite">صور فضائية</option>
-          <option value="hybrid">هجينة</option>
-          <option value="terrain">تضاريس</option>
-        </select>
-      </div>
-      <label class="chk"><input type="checkbox" id="lcTraffic"> حركة المرور</label>
-      <label class="chk"><input type="checkbox" id="lcTransit"> النقل العام</label>
-      <label class="chk"><input type="checkbox" id="lcBike"> مسارات الدراجات</label>
-    </div>`;
-  map.controls[google.maps.ControlPosition.TOP_LEFT].push(box);
-
-  const sel      = box.querySelector('#lcBase');
-  const tTraffic = box.querySelector('#lcTraffic');
-  const tTransit = box.querySelector('#lcTransit');
-  const tBike    = box.querySelector('#lcBike');
-  const head     = box.querySelector('#lcHead');
-
-  const trafficLayer   = new google.maps.TrafficLayer();
-  const transitLayer   = new google.maps.TransitLayer();
-  const bicyclingLayer = new google.maps.BicyclingLayer();
-
-  sel.addEventListener('change', ()=> map.setMapTypeId(sel.value));
-  tTraffic.addEventListener('change',()=> trafficLayer  .setMap(tTraffic.checked ? map : null));
-  tTransit.addEventListener('change',()=> transitLayer  .setMap(tTransit.checked ? map : null));
-  tBike   .addEventListener('change',()=> bicyclingLayer.setMap(tBike.checked    ? map : null));
-
-  head.addEventListener('click',()=> box.classList.toggle('min'));
-}
-
-// ===== تهيئة =====
-window.initMap = function(){
-  map = new google.maps.Map(document.getElementById('map'),{
-    center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, gestureHandling:'greedy',
-    mapTypeControl:false, fullscreenControl:true, streetViewControl:false
-  });
-
-  setupLayersControl();
-  cacheEditorEls();
-  bindEditorEvents();
-
-  document.getElementById('addCircleBtn')?.addEventListener('click', ()=>{
-    addMode = true;
-    ed.mapEl.classList.add('add-cursor');
-    ed.addHint.classList.remove('hidden');
-    closeDrawer();
-  });
-
-  document.getElementById('shareBtn')?.addEventListener('click', shareMap);
-
-  map.addListener('click', (e)=>{
-    if (!addMode) return;
-    addMode = false;
-    ed.mapEl.classList.remove('add-cursor');
-    ed.addHint.classList.add('hidden');
-    createCircleAt(e.latLng);
-  });
+  wireUi();
 };
+
+/* =========================
+   رسم من بيانات
+========================= */
+function renderFromData(data){
+  // تنظيف قديم
+  circles.forEach(o => { o.circle.setMap(null); o.label.map = null; });
+  circles = [];
+
+  (data.circles || []).forEach(d => {
+    const c = new google.maps.Circle({
+      map,
+      center: { lat: d.lat, lng: d.lng },
+      radius: d.radius ?? DEFAULT_RADIUS,
+      strokeColor: d.strokeColor ?? STYLE_STROKE,
+      strokeOpacity: 1,
+      strokeWeight: 3,
+      fillColor: d.fillColor ?? STYLE_FILL,
+      fillOpacity: d.fillOpacity ?? STYLE_OPAC,
+      draggable: true,
+      editable: true
+    });
+
+    const label = makeCenterLabel(c.getCenter(), d.name);
+    label.map = map;
+
+    const obj = { circle: c, label, __data: { ...d } };
+    circles.push(obj);
+
+    bindCircleEvents(obj);
+  });
+}
+
+/* =========================
+   المواقع الافتراضية
+========================= */
+function seedDefaults(){
+  renderFromData({
+    center: { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, zoom: DEFAULT_ZOOM },
+    circles: DEFAULT_SITES
+  });
+}
+
+/* =========================
+   البطاقة + أحداث الدائرة
+========================= */
+function infoHtml(d){
+  return `
+    <h4>${escapeHtml(d.name || "بدون اسم")}</h4>
+    <span class="label">الأمن:</span>
+    <p class="names">${escapeHtml(d.security || "—").replace(/\n/g,"<br>")}</p>
+    ${d.notes ? `<div class="sep"></div><div>${escapeHtml(d.notes)}</div>` : ""}
+  `;
+}
+
+function bindCircleEvents(obj){
+  const c = obj.circle;
+
+  c.addListener("click", () => { setSelected(obj); openEditor(); });
+
+  c.addListener("mouseover", () => {
+    infoWindow.setContent(infoHtml(obj.__data));
+    infoWindow.setPosition(c.getCenter());
+    infoWindow.open({ map });
+  });
+  c.addListener("mouseout", () => infoWindow.close());
+
+  // تحريك اللافتة مع المركز/الحجم
+  c.addListener("center_changed", () => {
+    const center = c.getCenter();
+    obj.__data.lat = center.lat();
+    obj.__data.lng = center.lng();
+    obj.label.position = center;
+    if (selected === obj) updateEditorFields(obj);
+  });
+  c.addListener("radius_changed", () => {
+    obj.__data.radius = Math.round(c.getRadius());
+    if (selected === obj) {
+      edRadius().value = obj.__data.radius;
+      edRadiusNum().value = obj.__data.radius;
+      $("#radius-val").textContent = obj.__data.radius;
+    }
+  });
+}
+
+function setSelected(obj){
+  selected = obj;
+  $("#delBtn").disabled = !selected;
+  updateEditorFields(obj);
+}
+
+function updateEditorFields(obj){
+  const d = obj.__data || {};
+  edName().value      = d.name || "";
+  edSecurity().value  = d.security || "";
+  edNotes().value     = d.notes || "";
+  edStroke().value    = d.strokeColor || STYLE_STROKE;
+  edFill().value      = d.fillColor   || STYLE_FILL;
+  edOpacity().value   = d.fillOpacity ?? STYLE_OPAC;
+  $("#op-val").textContent = edOpacity().value;
+
+  const r = Math.round(d.radius ?? DEFAULT_RADIUS);
+  edRadius().value    = r;
+  edRadiusNum().value = r;
+  $("#radius-val").textContent = r;
+
+  edDraggable().checked = obj.circle.getDraggable();
+  edEditable().checked  = obj.circle.getEditable();
+}
+
+function openEditor(){
+  $("#emptyState")?.classList.add("hidden");
+  $("#editor")?.classList.remove("hidden");
+  $(".sidebar")?.classList.add("open");
+  $("#drawerBackdrop")?.classList.remove("hidden");
+}
+
+/* =========================
+   واجهة المستخدم
+========================= */
+function wireUi(){
+  // إضافة موقع
+  $("#addCircleBtn")?.addEventListener("click", () => {
+    $("#addHint")?.classList.remove("hidden");
+    const once = map.addListener("click", (e) => {
+      google.maps.event.removeListener(once);
+      $("#addHint")?.classList.add("hidden");
+
+      const c = new google.maps.Circle({
+        map,
+        center: e.latLng,
+        radius: DEFAULT_RADIUS,
+        strokeColor: STYLE_STROKE,
+        strokeOpacity: 1,
+        strokeWeight: 3,
+        fillColor: STYLE_FILL,
+        fillOpacity: STYLE_OPAC,
+        draggable: true,
+        editable: true
+      });
+
+      const label = makeCenterLabel(e.latLng, "بدون اسم");
+      label.map = map;
+
+      const obj = {
+        circle: c,
+        label,
+        __data: {
+          name:"", security:"", notes:"",
+          lat:e.latLng.lat(), lng:e.latLng.lng(),
+          radius: DEFAULT_RADIUS,
+          strokeColor: STYLE_STROKE, fillColor: STYLE_FILL, fillOpacity: STYLE_OPAC
+        }
+      };
+      circles.push(obj);
+      bindCircleEvents(obj);
+      setSelected(obj);
+      openEditor();
+    });
+  });
+
+  // مشاركة
+  $("#shareBtn")?.addEventListener("click", () => {
+    const data = collectState();
+    const encoded = encodeData(data);
+    const url = `${location.origin}${location.pathname.replace(/index\.html?$/,'')}view.html?view=${encodeURIComponent(encoded)}`;
+    navigator.clipboard?.writeText(url).then(()=>alert("تم نسخ رابط العرض!")).catch(()=>prompt("انسخ الرابط:", url));
+  });
+
+  // Drawer للجوال
+  $("#closeEditor")?.addEventListener("click", () => {
+    $(".sidebar")?.classList.remove("open");
+    $("#drawerBackdrop")?.classList.add("hidden");
+  });
+  $("#drawerBackdrop")?.addEventListener("click", () => {
+    $(".sidebar")?.classList.remove("open");
+    $("#drawerBackdrop")?.classList.add("hidden");
+  });
+  $("#mobileToggle")?.addEventListener("click", () => {
+    $(".sidebar")?.classList.add("open");
+    $("#drawerBackdrop")?.classList.remove("hidden");
+  });
+
+  // حقول التحرير (حفظ فوري)
+  edName()?.addEventListener("input", () => {
+    if(!selected) return;
+    selected.__data.name = edName().value;
+    // حدّث اللافتة
+    selected.label.content.textContent = edName().value || "بدون اسم";
+    // حدّث المعاينة
+    infoWindow.setContent(infoHtml(selected.__data));
+  });
+  edSecurity()?.addEventListener("input", () => { if(!selected) return; selected.__data.security = edSecurity().value; });
+  edNotes()?.addEventListener("input", () => { if(!selected) return; selected.__data.notes = edNotes().value; });
+
+  edStroke()?.addEventListener("input", () => {
+    if(!selected) return;
+    selected.__data.strokeColor = edStroke().value;
+    selected.circle.setOptions({ strokeColor: edStroke().value });
+  });
+  edFill()?.addEventListener("input", () => {
+    if(!selected) return;
+    selected.__data.fillColor = edFill().value;
+    selected.circle.setOptions({ fillColor: edFill().value });
+  });
+  edOpacity()?.addEventListener("input", () => {
+    if(!selected) return;
+    const v = parseFloat(edOpacity().value) || STYLE_OPAC;
+    $("#op-val").textContent = v.toString();
+    selected.__data.fillOpacity = v;
+    selected.circle.setOptions({ fillOpacity: v });
+  });
+
+  edRadius()?.addEventListener("input", () => syncRadiusFromSlider());
+  edRadiusNum()?.addEventListener("input", () => syncRadiusFromNumber());
+
+  edDraggable()?.addEventListener("change", () => { if(!selected) return; selected.circle.setDraggable(edDraggable().checked); });
+  edEditable()?.addEventListener("change", () =>  { if(!selected) return; selected.circle.setEditable(edEditable().checked); });
+
+  // حذف/نسخ
+  $("#delBtn")?.addEventListener("click", () => {
+    if(!selected) return;
+    if(!confirm("حذف هذه الدائرة؟")) return;
+    selected.circle.setMap(null);
+    selected.label.map = null;
+    circles = circles.filter(o => o !== selected);
+    selected = null;
+    $("#editor")?.classList.add("hidden");
+    $("#emptyState")?.classList.remove("hidden");
+  });
+
+  $("#dupBtn")?.addEventListener("click", () => {
+    if(!selected) return;
+    const center = selected.circle.getCenter();
+    const off = 0.0005;
+    const pos = { lat: center.lat() + (Math.random()-0.5)*off, lng: center.lng() + (Math.random()-0.5)*off };
+
+    const c = new google.maps.Circle({
+      map,
+      center: pos,
+      radius: selected.__data.radius ?? DEFAULT_RADIUS,
+      strokeColor: selected.__data.strokeColor ?? STYLE_STROKE,
+      strokeOpacity: 1,
+      strokeWeight: 3,
+      fillColor: selected.__data.fillColor ?? STYLE_FILL,
+      fillOpacity: selected.__data.fillOpacity ?? STYLE_OPAC,
+      draggable: true,
+      editable: true
+    });
+    const label = makeCenterLabel(pos, selected.__data.name || "بدون اسم");
+    label.map = map;
+
+    const clone = {
+      circle: c,
+      label,
+      __data: { ...selected.__data, lat: pos.lat, lng: pos.lng }
+    };
+    circles.push(clone);
+    bindCircleEvents(clone);
+    setSelected(clone);
+    openEditor();
+  });
+}
+
+function syncRadiusFromSlider(){
+  if(!selected) return;
+  const v = Math.round(parseFloat(edRadius().value) || DEFAULT_RADIUS);
+  $("#radius-val").textContent = v.toString();
+  edRadiusNum().value = v;
+  selected.__data.radius = v;
+  selected.circle.setRadius(v);
+}
+function syncRadiusFromNumber(){
+  if(!selected) return;
+  const v = Math.round(parseFloat(edRadiusNum().value) || DEFAULT_RADIUS);
+  $("#radius-val").textContent = v.toString();
+  edRadius().value = v;
+  selected.__data.radius = v;
+  selected.circle.setRadius(v);
+}
+
+/* =========================
+   تجميع الحالة للمشاركة
+========================= */
+function collectState(){
+  return {
+    center: { lat: map.getCenter().lat(), lng: map.getCenter().lng(), zoom: map.getZoom() },
+    circles: circles.map(o => ({
+      lat: o.circle.getCenter().lat(),
+      lng: o.circle.getCenter().lng(),
+      radius: Math.round(o.circle.getRadius()),
+      strokeColor: o.__data.strokeColor,
+      fillColor: o.__data.fillColor,
+      fillOpacity: o.__data.fillOpacity,
+      name: o.__data.name || "",
+      security: o.__data.security || "",
+      notes: o.__data.notes || ""
+    }))
+  };
+}
+
+/* =========================
+   أدوات مساعدة
+========================= */
+function escapeHtml(t=""){
+  const div = document.createElement("div");
+  div.textContent = t;
+  return div.innerHTML;
+}
