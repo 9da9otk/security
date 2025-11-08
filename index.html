@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>خريطة الأمن – Google Maps</title>
 
-  <!-- أمان أساسي -->
+  <!-- أمان أساسي (CSP مبسّط) -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' https://maps.googleapis.com 'unsafe-inline';
@@ -19,7 +19,10 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- الشريط الجانبي / لوحة التحرير -->
+  <!-- خلفية تغطية عند فتح اللوحة -->
+  <div id="drawerBackdrop" class="backdrop hidden"></div>
+
+  <!-- لوحة التحرير (Drawer دائمًا مخفية إلا عند الفتح) -->
   <aside id="sidebar" class="sidebar">
     <h3>لوحة التحكم</h3>
 
@@ -77,7 +80,7 @@
   <!-- الخريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- زر الجوال لفتح اللوحة -->
+  <!-- زر “تحرير” ثابت أسفل يسار -->
   <button id="mobileToggle" class="mobile-toggle" aria-label="فتح لوحة التحرير">☰ تحرير</button>
 
   <!-- خرائط قوقل: استبدل YOUR_API_KEY -->
