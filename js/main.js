@@ -1,8 +1,8 @@
 /* =========================================================
    Google Maps – Main App Script
-   - طبقات قابلة للطي (بدون سحب حتى لا تعيق النقر)
-   - Drawer للتحرير يُفتح بزر أسفل يسار
-   - مشاركة/تحميل عبر #view=...
+   - لا Alert عند الإضافة (تلميح خفيف فقط)
+   - لوحة الطبقات لا تختفي
+   - Drawer لا يُفتح إلا بعد إنشاء الدائرة
    ========================================================= */
 
 const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
@@ -14,7 +14,6 @@ const circles = [];
 const infoWindows = new Map();
 let activeCircle = null;
 
-/* ===== وضع العرض من الرابط ===== */
 const urlParams   = new URLSearchParams(location.search);
 const isViewMode  = urlParams.has('view') || (location.hash || "").includes("view=");
 
@@ -26,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-/* ===== ترميز/فك ترميز مضغوط ===== */
+/* ===== ترميز/فك ترميز ===== */
 function toBase64Url(bytes){let b="";bytes.forEach(x=>b+=String.fromCharCode(x));return btoa(b).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");}
 function fromBase64Url(s){let b=s.replace(/-/g,"+").replace(/_/g,"/");const p=b.length%4;if(p)b+="=".repeat(4-p);const bin=atob(b);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
 function compactData(data){return{c:data.center,r:data.circles.map(c=>({l:[c.center.lat,c.center.lng],r:c.radius,co:c.strokeColor,fc:c.fillColor,o:c.fillOpacity,n:c.name,s:c.security,t:c.notes}))};}
@@ -40,10 +39,7 @@ function setViewParam(e){const newHash=`view=${e}`;const url=`${location.origin}
 function escapeHtml(t){const d=document.createElement('div');d.textContent=t??'';return d.innerHTML;}
 function infoHtml(d){
   const name  = escapeHtml(d?.name || 'نقطة مراقبة');
-  const lines = String(d?.security ?? '---')
-                  .split(/\r?\n/)
-                  .map(s => escapeHtml(s.trim()))
-                  .filter(Boolean);
+  const lines = String(d?.security ?? '---').split(/\r?\n/).map(s=>escapeHtml(s.trim())).filter(Boolean);
   return `<div class="info-card">
     <div class="tt-title">${name}</div>
     <div class="tt-label">الأمن:</div>
@@ -71,7 +67,7 @@ function closeAllInfoWindows(except){
   infoWindows.forEach(iw => { if (iw !== except) iw.close(); });
 }
 
-/* ===== تفاعلات الدوائر ===== */
+/* ===== دوائر ===== */
 function wireCircleHover(circle){
   const open = ()=>{ const iw=ensureInfoWindow(circle); closeAllInfoWindows(iw); iw.open({map}); };
   const move = ()=>{ const iw=ensureInfoWindow(circle); iw.setPosition(topEdgeLatLng(circle.getCenter(),circle.getRadius())); };
@@ -95,10 +91,10 @@ function createCircleAt(latLng){
   circle.__data = { name:'', security:'', notes:'' };
   wireCircleHover(circle);
   circles.push(circle);
-  selectCircle(circle);
+  selectCircle(circle);           // افتح المحرر بعد الإنشاء فقط
 }
 
-/* ===== عناصر المحرر (Drawer) ===== */
+/* ===== المحرر ===== */
 const ed = {};
 function cacheEditorEls(){
   ed.sidebar   = document.getElementById('sidebar');
@@ -123,6 +119,9 @@ function cacheEditorEls(){
   ed.editable = document.getElementById('ed-editable');
   ed.dup      = document.getElementById('dupBtn');
   ed.del      = document.getElementById('delBtn');
+
+  ed.addHint  = document.getElementById('addHint');
+  ed.mapEl    = document.getElementById('map');
 }
 
 function openDrawer(){ ed.sidebar?.classList.add('open'); ed.backdrop?.classList.remove('hidden'); }
@@ -275,15 +274,11 @@ function loadFromUrl(){
   }
 }
 
-/* ===== لوحة الطبقات: تُفتح/تُطوى + تتذكر الحالة ===== */
+/* ===== لوحة الطبقات ===== */
 function setupLayersControl(){
   const box = document.createElement('div');
-  box.className = 'godj-layers min'; // ابدأ مطوي دائمًا
-
-  try {
-    const saved = localStorage.getItem('godj_layers_open');
-    if (saved === '1') box.classList.remove('min');
-  } catch {}
+  box.className = 'godj-layers min'; // ابدأ مطوي
+  try { const saved = localStorage.getItem('godj_layers_open'); if (saved === '1') box.classList.remove('min'); } catch {}
 
   box.innerHTML = `
     <div class="lc-head" id="lcHead" title="الطبقات">
@@ -331,7 +326,7 @@ function setupLayersControl(){
   toggle.addEventListener('click',toggleMin);
 }
 
-/* ===== تهيئة الخريطة ===== */
+/* ===== تهيئة ===== */
 window.initMap = function(){
   map = new google.maps.Map(document.getElementById('map'),{
     center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, gestureHandling:'greedy',
@@ -342,19 +337,22 @@ window.initMap = function(){
   cacheEditorEls();
   bindEditorEvents();
 
+  // لا نستخدم alert؛ نعرض شريط تلميح فقط
   document.getElementById('addCircleBtn')?.addEventListener('click', ()=>{
     addMode = true;
-    document.getElementById('map').classList.add('add-cursor');
-    alert('انقر على الخريطة لوضع دائرة جديدة.');
-    openDrawer();
+    ed.mapEl.classList.add('add-cursor');
+    ed.addHint.classList.remove('hidden');
+    closeDrawer();                 // نتأكد أن أي خلفية لا تغطي الخريطة
   });
+
   document.getElementById('shareBtn')?.addEventListener('click', shareMap);
 
   map.addListener('click', (e)=>{
     if (!addMode) return;
     addMode = false;
-    document.getElementById('map').classList.remove('add-cursor');
-    createCircleAt(e.latLng);
+    ed.mapEl.classList.remove('add-cursor');
+    ed.addHint.classList.add('hidden');
+    createCircleAt(e.latLng);      // بعد الإنشاء نفتح المحرر من selectCircle
   });
 
   loadFromUrl();
