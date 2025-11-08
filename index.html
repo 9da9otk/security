@@ -18,10 +18,10 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- خلفية تغطية عند فتح لوحة التحرير -->
+  <!-- خلفية تغطية للمحرر -->
   <div id="drawerBackdrop" class="backdrop hidden" aria-hidden="true"></div>
 
-  <!-- لوحة التحرير -->
+  <!-- لوحة التحرير (ستختفي تماماً في وضع العرض) -->
   <aside id="sidebar" class="sidebar" aria-label="لوحة التحرير">
     <h3>لوحة التحكم</h3>
 
@@ -79,13 +79,13 @@
   <!-- الخريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- شريط تلميح عند وضع دائرة -->
+  <!-- تلميح وضع الإضافة -->
   <div id="addHint" class="add-hint hidden">انقر على الخريطة لوضع دائرة جديدة.</div>
 
-  <!-- زر “تحرير” ثابت أسفل يسار -->
+  <!-- زر فتح المحرر (يُخفى في وضع العرض) -->
   <button id="mobileToggle" class="mobile-toggle" aria-label="فتح لوحة التحرير">☰ تحرير</button>
 
-  <!-- خرائط قوقل: استبدل YOUR_API_KEY -->
+  <!-- خرائط قوقل: ضع مفتاحك -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly" defer></script>
   <script src="js/main.js"></script>
 </body>
