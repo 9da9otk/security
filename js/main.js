@@ -1,6 +1,6 @@
 /* =========================================================
    Google Maps – Main App Script
-   - طبقات قابلة للطي والسحب
+   - طبقات قابلة للطي (بدون سحب حتى لا تعيق النقر)
    - Drawer للتحرير يُفتح بزر أسفل يسار
    - مشاركة/تحميل عبر #view=...
    ========================================================= */
@@ -275,13 +275,10 @@ function loadFromUrl(){
   }
 }
 
-/* ===== لوحة الطبقات: قابلة للطي والسحب + تتذكر الحالة ===== */
+/* ===== لوحة الطبقات: تُفتح/تُطوى + تتذكر الحالة ===== */
 function setupLayersControl(){
   const box = document.createElement('div');
-  box.className = 'godj-layers min';            // ابدأ مطوي دائمًا
-  box.style.position = 'relative';               // للسحب
-  box.style.left = '0px';
-  box.style.top  = '0px';
+  box.className = 'godj-layers min'; // ابدأ مطوي دائمًا
 
   try {
     const saved = localStorage.getItem('godj_layers_open');
@@ -332,47 +329,6 @@ function setupLayersControl(){
   };
   head.addEventListener('click',  toggleMin);
   toggle.addEventListener('click',toggleMin);
-
-  // اجعل اللوحة قابلة للسحب بواسطة الرأس
-  makeDraggable(box, head);
-}
-
-/* مساعد بسيط للسحب (يدعم الماوس واللمس) */
-function makeDraggable(container, handle){
-  let sx=0, sy=0, ox=0, oy=0, dragging=false;
-
-  const start = (e)=>{
-    dragging = true;
-    const ev = e.touches ? e.touches[0] : e;
-    sx = ev.clientX; sy = ev.clientY;
-    const rect = container.getBoundingClientRect();
-    ox = rect.left; oy = rect.top;
-    container.style.transition = 'none';
-    document.addEventListener('mousemove', move);
-    document.addEventListener('touchmove', move, {passive:false});
-    document.addEventListener('mouseup', end);
-    document.addEventListener('touchend', end);
-  };
-  const move = (e)=>{
-    if (!dragging) return;
-    const ev = e.touches ? e.touches[0] : e;
-    e.preventDefault?.();
-    const dx = ev.clientX - sx;
-    const dy = ev.clientY - sy;
-    container.style.left = (ox + dx) + 'px';
-    container.style.top  = (oy + dy) + 'px';
-    container.style.right = 'auto';
-  };
-  const end = ()=>{
-    dragging = false;
-    container.style.transition = '';
-    document.removeEventListener('mousemove', move);
-    document.removeEventListener('touchmove', move);
-    document.removeEventListener('mouseup', end);
-    document.removeEventListener('touchend', end);
-  };
-  handle.addEventListener('mousedown', start);
-  handle.addEventListener('touchstart', start, {passive:true});
 }
 
 /* ===== تهيئة الخريطة ===== */
