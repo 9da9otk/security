@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>خريطة الأمن – تحرير</title>
 
-  <!-- CSP مناسبة لخرائط Google (يمكنك تشديدها لاحقاً عند الحاجة) -->
+  <!-- CSP مناسبة لخرائط Google -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self';
                  script-src 'self' https://maps.googleapis.com https://maps.gstatic.com 'unsafe-inline';
@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- خلفية تغطية عند فتح لوحة التحرير على الجوال -->
+  <!-- خلفية تغطية للمحرر على الجوال -->
   <div id="drawerBackdrop" class="backdrop hidden" aria-hidden="true"></div>
 
   <!-- لوحة التحرير -->
@@ -86,13 +86,13 @@
 
   <noscript>يجب تفعيل JavaScript لعرض الخرائط.</noscript>
 
-  <!-- مكتبة خرائط Google (مفتاحك مضمن) -->
-  <script
-    async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly&loading=async">
-  </script>
+  <!-- نفّذ منطقك أولاً (defer يحافظ على الترتيب) -->
+  <script defer src="js/main.js"></script>
 
-  <!-- منطق التحرير -->
-  <script src="js/main.js"></script>
+  <!-- حمّل مكتبة الخرائط بعده وبـ defer لتفادي السباق على initMap -->
+  <script
+    defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&callback=initMap&libraries=geometry&v=weekly">
+  </script>
 </body>
 </html>
