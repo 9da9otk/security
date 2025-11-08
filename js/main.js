@@ -6,11 +6,15 @@ const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
 const DEFAULT_ZOOM   = 14;
 const DEFAULT_RADIUS = 15; // نصف القطر الافتراضي (متر)
 
+// الحالة الافتراضية: لا سحب ولا تغيير حجم
+const DRAG_DEFAULT   = false;
+const EDIT_DEFAULT   = false;
+
 const STYLE_STROKE = "#7c3aed";  // لون حد واضح
 const STYLE_FILL   = "#c084fc";  // لون تعبئة واضح
 const STYLE_OPAC   = 0.25;       // شفافية التعبئة
 
-// المواقع الافتراضية (من قائمتك) - الاسم + الإحداثيات + نصف القطر 15م
+// المواقع الافتراضية
 const DEFAULT_SITES = [
   { name:"بوابة سمحان",                         lat:24.742132284177778, lng:46.569503913805825 },
   { name:"منطقة سمحان",                         lat:24.74091335108621,  lng:46.571891407130025 },
@@ -147,8 +151,8 @@ function renderFromData(data){
       strokeWeight: 3,
       fillColor: d.fillColor ?? STYLE_FILL,
       fillOpacity: d.fillOpacity ?? STYLE_OPAC,
-      draggable: true,
-      editable: true
+      draggable: DRAG_DEFAULT,
+      editable: EDIT_DEFAULT
     });
 
     const obj = { circle: c, __data: { ...d } };
@@ -232,6 +236,7 @@ function updateEditorFields(obj){
   edRadiusNum().value = r;
   $("#radius-val").textContent = r;
 
+  // افتراضيًا غير مفعّل
   edDraggable().checked = obj.circle.getDraggable();
   edEditable().checked  = obj.circle.getEditable();
 }
@@ -263,8 +268,8 @@ function wireUi(){
         strokeWeight: 3,
         fillColor: STYLE_FILL,
         fillOpacity: STYLE_OPAC,
-        draggable: true,
-        editable: true
+        draggable: DRAG_DEFAULT,
+        editable: EDIT_DEFAULT
       });
 
       const obj = {
@@ -309,7 +314,6 @@ function wireUi(){
   edName()?.addEventListener("input", () => {
     if(!selected) return;
     selected.__data.name = edName().value;
-    // تحديث الكرت المفتوح (إن كان ظاهرًا)
     infoWindow.setContent(infoHtml(selected.__data));
   });
   edSecurity()?.addEventListener("input", () => { if(!selected) return; selected.__data.security = edSecurity().value; });
@@ -365,8 +369,8 @@ function wireUi(){
       strokeWeight: 3,
       fillColor: selected.__data.fillColor ?? STYLE_FILL,
       fillOpacity: selected.__data.fillOpacity ?? STYLE_OPAC,
-      draggable: true,
-      editable: true
+      draggable: selected.circle.getDraggable(),
+      editable: selected.circle.getEditable()
     });
 
     const clone = { circle: c, __data: { ...selected.__data, lat: pos.lat, lng: pos.lng } };
