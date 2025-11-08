@@ -1,152 +1,76 @@
-/* js/main.js */
-// =========================================
-// إعدادات عامة
-// =========================================
 "use strict";
 
-// اجعل المتغيرات في النطاق العام للرجوع لها لاحقًا إن لزم
-let map = null;
-let trafficLayer = null;
-let transitLayer = null;
-let bicyclingLayer = null;
+/** عناصر مساعدة للتشخيص */
+const dbg = (msg) => {
+  console.log("[MAP]", msg);
+  const el = document.getElementById("dbg");
+  if (el) el.textContent = msg;
+};
 
-// مركز افتراضي: الدرعية
-const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
-const DEFAULT_ZOOM = 14;
+// التقط أي أخطاء عامة لنعرف إن كانت قبل تهيئة الخرائط
+window.addEventListener("error", (e) => console.error("[ERR] onerror:", e.message, e));
+window.addEventListener("unhandledrejection", (e) => console.error("[ERR] unhandled:", e.reason));
 
-// مساعد آمن للحصول على عنصر
-function $(sel) {
-  return document.querySelector(sel);
-}
-
-// ربط مستمع بأمان (إذا وُجد العنصر)
-function onIfExists(el, evt, handler) {
-  if (el) el.addEventListener(evt, handler);
-}
-
-// =========================================
-// الدالة التي ستناديها Google عبر callback
-// يجب تعريفها على window
-// =========================================
+/** سيستدعيه سكربت Google عبر callback=initApp */
 function initApp() {
   try {
-    // تأكيد توفر google قبل أي استخدام
+    dbg("callback وصل — نبدأ التهيئة…");
+
+    // تأكد أن google.maps موجود فعلاً
     if (!(window.google && google.maps)) {
-      console.error("Google Maps لم تُحمّل بعد.");
-      // إعادة المحاولة خلال لحظة إذا حصل تأخير نادر
+      dbg("google.maps غير جاهزة بعد — إعادة محاولة…");
       setTimeout(initApp, 100);
       return;
     }
 
+    // تأكد من وجود عنصر الخريطة وارتفاعه
+    const mapEl = document.getElementById("map");
+    if (!mapEl) {
+      console.error("لا يوجد عنصر #map في DOM");
+      dbg("لا يوجد #map");
+      return;
+    }
+    if (!mapEl.offsetHeight) {
+      mapEl.style.height = "100vh";
+      dbg("ارتفاع #map كان 0 — تم ضبطه 100vh");
+    }
+
     // إنشاء الخريطة
-    map = new google.maps.Map(document.getElementById("map"), {
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+    const CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
+    const map = new google.maps.Map(mapEl, {
+      center: CENTER,
+      zoom: 14,
       mapTypeId: "roadmap",
-      gestureHandling: "greedy", // سلاسة على الجوال
       streetViewControl: false,
+      gestureHandling: "greedy",
       fullscreenControl: true,
-      mapTypeControl: false, // سنوفره من القائمة عندك
+      mapTypeControl: true
     });
 
-    // طبقات Google الاختيارية
-    trafficLayer = new google.maps.TrafficLayer();
-    transitLayer = new google.maps.TransitLayer();
-    bicyclingLayer = new google.maps.BicyclingLayer();
-
-    // -------------------------------------
-    // ربط عناصر "الطبقات" إن وُجدت في DOM
-    // -------------------------------------
-    // نوع الخريطة: select
-    const baseSelect =
-      $("#baseMapSelect") || $("#basemap") || $("#base-map-select") || $("#mapType");
-
-    onIfExists(baseSelect, "change", (e) => {
-      const val = (e.target.value || "").toLowerCase();
-      switch (val) {
-        case "hybrid":
-        case "مختلط":
-          map.setMapTypeId("hybrid");
-          break;
-        case "satellite":
-        case "قمر صناعي":
-          map.setMapTypeId("satellite");
-          break;
-        case "terrain":
-        case "تضاريس":
-          map.setMapTypeId("terrain");
-          break;
-        default:
-          map.setMapTypeId("roadmap");
-      }
+    // مؤشر صغير للتأكد بصرياً أن الخريطة تعمل
+    new google.maps.Marker({
+      position: CENTER,
+      map,
+      title: "الدرعية"
     });
 
-    // حركة المرور
-    const chkTraffic =
-      $("#trafficToggle") || $("#traffic") || $("#traffic-layer") || $("#chk-traffic");
-    onIfExists(chkTraffic, "change", (e) => {
-      if (e.target.checked) trafficLayer.setMap(map);
-      else trafficLayer.setMap(null);
+    // دائرة اختبار 15 م
+    new google.maps.Circle({
+      map,
+      center: CENTER,
+      radius: 15,
+      strokeColor: "#6b46ff",
+      strokeWeight: 2,
+      fillColor: "#b28dff",
+      fillOpacity: 0.35
     });
 
-    // النقل العام
-    const chkTransit =
-      $("#transitToggle") || $("#transit") || $("#transit-layer") || $("#chk-transit");
-    onIfExists(chkTransit, "change", (e) => {
-      if (e.target.checked) transitLayer.setMap(map);
-      else transitLayer.setMap(null);
-    });
-
-    // مسارات الدراجات
-    const chkBike =
-      $("#bicyclingToggle") || $("#bicycling") || $("#bicycle-layer") || $("#chk-bicycle");
-    onIfExists(chkBike, "change", (e) => {
-      if (e.target.checked) bicyclingLayer.setMap(map);
-      else bicyclingLayer.setMap(null);
-    });
-
-    // لو لديك زر "إضافة موقع" وغيره يمكن ربطه هنا إن وُجد.
-    // مثال:
-    // onIfExists($('#addCircleBtn'), 'click', () => { ... });
-
-    // تأكيد أن عنصر الخريطة له ارتفاع فعلي
-    // (احتياط لو كان CSS ناقصًا)
-    ensureMapHeight();
-
-    console.log("Google Map initialized.");
+    dbg("تمت تهيئة الخريطة بنجاح ✅");
   } catch (err) {
     console.error("فشل تهيئة الخريطة:", err);
+    dbg("خطأ أثناء التهيئة");
   }
 }
 
-// اجعلها متاحة للـ callback
+// مهم جداً: إتاحة الدالة للـ callback
 window.initApp = initApp;
-
-// =========================================
-// ضمان وجود ارتفاع للخريطة (احتياطي)
-// =========================================
-function ensureMapHeight() {
-  const el = document.getElementById("map");
-  if (!el) {
-    console.warn("لم يتم العثور على عنصر #map");
-    return;
-  }
-  // إذا كان الارتفاع 0 بالخطأ، اجعله يملأ الشاشة
-  const h = parseInt(getComputedStyle(el).height, 10);
-  if (!h) {
-    el.style.height = "100vh";
-  }
-}
-
-// =========================================
-// ملاحظة مهمة:
-// في index.html (وأيضًا view.html)،
-/*
-ضع في النهاية:
-
-<script src="js/main.js"></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=geometry&v=weekly&callback=initApp" async defer></script>
-
-واستبدل YOUR_API_KEY بمفتاحك.
-*/
-// =========================================
