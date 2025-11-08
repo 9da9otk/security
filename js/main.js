@@ -8,8 +8,7 @@ function loadGoogleMaps() {
   return new Promise((resolve, reject) => {
     if (window.google && window.google.maps) return resolve();
 
-    const src = `https://maps.googleapis.com/maps/api/js?key=${AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8
-}&libraries=geometry&v=weekly`;
+    const src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&libraries=geometry&v=weekly`;
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
