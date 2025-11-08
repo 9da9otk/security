@@ -3,89 +3,89 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن – فحص سريع</title>
-  <style>
-    html,body{height:100%;margin:0;background:#0b1320;color:#e6ebff;font-family:system-ui,"Segoe UI",Tahoma}
-    #map{position:fixed;inset:0}
-    #gmap-error{position:fixed;inset:0;display:none;place-items:center;text-align:center;background:#111827;padding:24px;z-index:99999}
-    #gmap-error .box{max-width:780px;border:1px solid #f87171;background:#1f2937;border-radius:14px;padding:20px;box-shadow:0 10px 35px rgba(0,0,0,.35)}
-    .badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#334155;font-size:12px}
-    code{font-family:ui-monospace,Consolas,monaco;font-size:12px}
-  </style>
+  <title>خريطة الأمن</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة"></div>
 
-  <!-- بانر تشخيص إن فشل تحميل خرائط Google -->
-  <div id="gmap-error">
+  <!-- صندوق الطبقات -->
+  <div id="layersBox" class="card">
+    <div class="card-title">الطبقات</div>
+    <label class="row">
+      <span>نوع الخريطة</span>
+      <select id="mapTypeSelect">
+        <option value="roadmap">خريطة</option>
+        <option value="satellite">قمر صناعي</option>
+        <option value="hybrid">هجين</option>
+        <option value="terrain">تضاريس</option>
+      </select>
+    </label>
+    <label class="row"><input type="checkbox" id="layerTraffic" /> حركة المرور</label>
+    <label class="row"><input type="checkbox" id="layerTransit" /> النقل العام</label>
+    <label class="row"><input type="checkbox" id="layerBike" /> مسارات الدراجات</label>
+  </div>
+
+  <!-- لوحة التحرير (تستطيع إخفاءها لاحقًا، المهم الآن أن الخريطة تعمل) -->
+  <aside id="editorPanel" class="panel">
+    <div class="panel-header">
+      <h3>لوحة التحكم</h3>
+    </div>
+    <div class="panel-body">
+      <button id="addCircleBtn" class="btn btn-primary">إضافة موقع +</button>
+      <button id="shareBtn" class="btn btn-secondary">مشاركة الخريطة</button>
+      <p class="hint">نصيحة: مرّر الماوس على الدائرة لعرض الكرت؛ على الجوال: اضغط/المس.</p>
+
+      <div class="section">
+        <div class="section-title">تحرير الدائرة</div>
+
+        <label class="label">اسم الموقع</label>
+        <input id="siteName" class="input" placeholder="مثال: دوار البجيري" />
+
+        <label class="label">أفراد الأمن (كل اسم في سطر)</label>
+        <textarea id="securityNames" class="textarea" placeholder="اكتب كل اسم في سطر"></textarea>
+
+        <label class="label">ملاحظات</label>
+        <textarea id="notes" class="textarea" placeholder="...ملاحظاتك"></textarea>
+
+        <div class="grid-2">
+          <div>
+            <label class="label">لون التعبئة</label>
+            <input type="color" id="fillColor" class="input" value="#a78bfa" />
+          </div>
+          <div>
+            <label class="label">لون الحدود</label>
+            <input type="color" id="strokeColor" class="input" value="#7c3aed" />
+          </div>
+        </div>
+
+        <label class="label">شفافية التعبئة</label>
+        <input type="range" id="fillOpacity" min="0" max="1" step="0.01" value="0.25" />
+
+        <label class="label">نصف القطر (م)</label>
+        <input id="radius" class="input" type="number" min="1" value="15" />
+
+        <div class="grid-2">
+          <label class="row"><input type="checkbox" id="dragToggle" /> سحب الدائرة</label>
+          <label class="row"><input type="checkbox" id="editToggle" /> تغيير الحجم</label>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Overlay أخطاء تحميل الخرائط -->
+  <div id="gmap-error" hidden>
     <div class="box">
-      <h2 style="margin:0 0 8px">تعذّر تحميل خرائط Google</h2>
-      <p style="margin:0 0 10px;line-height:1.7">
-        افحص: <span class="badge">API Key</span> ، <span class="badge">HTTP Referrers</span> ،
-        <span class="badge">تفعيل Maps JavaScript API</span> ، <span class="badge">الفوترة</span>.
+      <h2>تعذّر تحميل خرائط Google</h2>
+      <p>
+        افحص: API Key، قيود Referrer، تفعيل <strong>Maps JavaScript API</strong>، الفوترة.
       </p>
-      <div id="err-details" style="opacity:.85"><code></code></div>
+      <pre id="err-details"></pre>
     </div>
   </div>
 
-  <script>
-    // نسجّل بوضوح في الـ Console
-    console.log('[BOOT] inline init starting…');
-
-    // مركز الدرعية
-    const DEFAULT_CENTER = { lat: 24.7408, lng: 46.5759 };
-    const DEFAULT_ZOOM   = 14;
-
-    // نعرّف initMap inline حتى لا نعتمد على js/main.js
-    window.initMap = function(){
-      try{
-        if(!window.google || !google.maps) throw new Error('google.maps غير متوفر أثناء initMap');
-        const map = new google.maps.Map(document.getElementById('map'), {
-          center: DEFAULT_CENTER,
-          zoom: DEFAULT_ZOOM,
-          mapTypeId: 'roadmap',
-          gestureHandling: 'greedy'
-        });
-        console.log('[OK] Google Maps loaded. Version:', google.maps.version);
-
-        // دائرة اختبار (15 م)
-        new google.maps.Circle({
-          map,
-          center: DEFAULT_CENTER,
-          radius: 15,
-          strokeColor: '#7c3aed',
-          strokeOpacity: 1,
-          strokeWeight: 2,
-          fillColor: '#a78bfa',
-          fillOpacity: 0.25
-        });
-      }catch(e){
-        const b=document.getElementById('gmap-error'); b.style.display='grid';
-        document.getElementById('err-details').firstChild.textContent = 'initMap error: ' + (e?.message||e);
-        console.error('[initMap] Error:', e);
-      }
-    };
-
-    // أمان إضافي: إذا تأخر سكربت Google نظهر رسالة بعد 6 ثواني
-    setTimeout(function(){
-      if(!window.google || !google.maps){
-        const b=document.getElementById('gmap-error'); b.style.display='grid';
-        document.getElementById('err-details').firstChild.textContent =
-          'google.maps لم تُحمّل (Timeout). افتح Console وافحص Network لرسالة مثل RefererNotAllowedMapError.';
-      }
-    }, 6000);
-  </script>
-
-  <!-- سكربت خرائط Google بمفتاحك -->
-  <script
-    id="gmap-script"
-    async defer
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&libraries=geometry&v=weekly&callback=initMap"
-    onerror="(function(){
-      const b=document.getElementById('gmap-error'); b.style.display='grid';
-      document.getElementById('err-details').firstChild.textContent='Network/Script load failed (onerror).';
-      console.error('Google Maps JS failed to load.');
-    })();">
-  </script>
+  <!-- سكربت التطبيق -->
+  <script src="js/main.js" defer></script>
 </body>
 </html>
