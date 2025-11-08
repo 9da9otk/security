@@ -4,13 +4,13 @@
 
 const DEFAULT_CENTER = { lat: 24.73722164546818, lng: 46.53877581519047 };
 const DEFAULT_ZOOM   = 14;
-const DEFAULT_RADIUS = 15; // 👈 نصف القطر الافتراضي (م)
+const DEFAULT_RADIUS = 15; // نصف القطر الافتراضي (متر)
 
-const STYLE_STROKE = "#7c3aed";  // بنفسجي واضح للحدود
-const STYLE_FILL   = "#c084fc";  // بنفسجي فاتح للتعبئة
+const STYLE_STROKE = "#7c3aed";  // لون حد واضح
+const STYLE_FILL   = "#c084fc";  // لون تعبئة واضح
 const STYLE_OPAC   = 0.25;       // شفافية التعبئة
 
-// جميع المواقع الافتراضية (بالاسم + الإحداثيات)
+// المواقع الافتراضية (من قائمتك) - الاسم + الإحداثيات + نصف القطر 15م
 const DEFAULT_SITES = [
   { name:"بوابة سمحان",                         lat:24.742132284177778, lng:46.569503913805825 },
   { name:"منطقة سمحان",                         lat:24.74091335108621,  lng:46.571891407130025 },
@@ -31,7 +31,15 @@ const DEFAULT_SITES = [
   { name:"دوار وادي صفار",                      lat:24.72491458984474,  lng:46.57345489743978  },
   { name:"دوار راس النعامة",                    lat:24.710329841152387, lng:46.572921959358204 },
   { name:"مزرعة الحبيب",                        lat:24.709445443672344, lng:46.593971867951346 }
-].map(s => ({ ...s, radius: DEFAULT_RADIUS, strokeColor: STYLE_STROKE, fillColor: STYLE_FILL, fillOpacity: STYLE_OPAC, security:"", notes:"" }));
+].map(s => ({
+  ...s,
+  radius: DEFAULT_RADIUS,
+  strokeColor: STYLE_STROKE,
+  fillColor: STYLE_FILL,
+  fillOpacity: STYLE_OPAC,
+  security: "",
+  notes: ""
+}));
 
 /* =========================
    ترميز/فك ترميز للمشاركة
@@ -70,13 +78,14 @@ function decodeData(encoded) {
 }
 
 /* =========================
-   حالة التطبيق + مراجع DOM
+   حالة التطبيق + DOM
 ========================= */
 let map, infoWindow;
-let circles = [];     // [{ circle, label, __data }]
+let circles = [];     // عناصر الدوائر [{ circle, __data }]
 let selected = null;
 
 const $ = s => document.querySelector(s);
+
 const edName       = () => $("#ed-name");
 const edSecurity   = () => $("#ed-security");
 const edNotes      = () => $("#ed-notes");
@@ -89,23 +98,7 @@ const edDraggable  = () => $("#ed-draggable");
 const edEditable   = () => $("#ed-editable");
 
 /* =========================
-   إنشاء لافتة اسم داخل الدائرة (AdvancedMarker)
-========================= */
-function makeCenterLabel(position, text){
-  const el = document.createElement("div");
-  el.className = "circle-name-badge";
-  el.textContent = text || "بدون اسم";
-  const marker = new google.maps.marker.AdvancedMarkerElement({
-    position,
-    content: el,
-    collisionBehavior: google.maps.CollisionBehavior.REQUIRED,
-    zIndex: 1000
-  });
-  return marker;
-}
-
-/* =========================
-   خريطة Google
+   Google Map
 ========================= */
 window.initMap = function initMap() {
   map = new google.maps.Map(document.getElementById("map"), {
@@ -117,7 +110,6 @@ window.initMap = function initMap() {
   });
   infoWindow = new google.maps.InfoWindow({});
 
-  // تحميل من رابط أو افتراضي
   const url = new URL(location.href);
   const view = url.searchParams.get("view");
   if (view) {
@@ -138,11 +130,11 @@ window.initMap = function initMap() {
 };
 
 /* =========================
-   رسم من بيانات
+   الرسم من بيانات
 ========================= */
 function renderFromData(data){
-  // تنظيف قديم
-  circles.forEach(o => { o.circle.setMap(null); o.label.map = null; });
+  // تنظيف
+  circles.forEach(o => o.circle.setMap(null));
   circles = [];
 
   (data.circles || []).forEach(d => {
@@ -159,19 +151,12 @@ function renderFromData(data){
       editable: true
     });
 
-    const label = makeCenterLabel(c.getCenter(), d.name);
-    label.map = map;
-
-    const obj = { circle: c, label, __data: { ...d } };
+    const obj = { circle: c, __data: { ...d } };
     circles.push(obj);
-
     bindCircleEvents(obj);
   });
 }
 
-/* =========================
-   المواقع الافتراضية
-========================= */
 function seedDefaults(){
   renderFromData({
     center: { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, zoom: DEFAULT_ZOOM },
@@ -180,22 +165,28 @@ function seedDefaults(){
 }
 
 /* =========================
-   البطاقة + أحداث الدائرة
+   InfoWindow (الكرت)
 ========================= */
 function infoHtml(d){
   return `
-    <h4>${escapeHtml(d.name || "بدون اسم")}</h4>
-    <span class="label">الأمن:</span>
-    <p class="names">${escapeHtml(d.security || "—").replace(/\n/g,"<br>")}</p>
-    ${d.notes ? `<div class="sep"></div><div>${escapeHtml(d.notes)}</div>` : ""}
+    <div class="infocard">
+      <div class="infocard-header">${escapeHtml(d.name || "بدون اسم")}</div>
+      <div class="infocard-body">
+        <div class="label">الأمن:</div>
+        <div class="names">${escapeHtml(d.security || "—").replace(/\n/g,"<br>")}</div>
+        ${d.notes ? `<div class="sep"></div><div class="notes">${escapeHtml(d.notes)}</div>` : ""}
+      </div>
+    </div>
   `;
 }
 
 function bindCircleEvents(obj){
   const c = obj.circle;
 
+  // فتح المحرر عند النقر
   c.addListener("click", () => { setSelected(obj); openEditor(); });
 
+  // كرت منبثق عند المرور/الخروج
   c.addListener("mouseover", () => {
     infoWindow.setContent(infoHtml(obj.__data));
     infoWindow.setPosition(c.getCenter());
@@ -203,12 +194,11 @@ function bindCircleEvents(obj){
   });
   c.addListener("mouseout", () => infoWindow.close());
 
-  // تحريك اللافتة مع المركز/الحجم
+  // تحديث البيانات عند التغيير
   c.addListener("center_changed", () => {
     const center = c.getCenter();
     obj.__data.lat = center.lat();
     obj.__data.lng = center.lng();
-    obj.label.position = center;
     if (selected === obj) updateEditorFields(obj);
   });
   c.addListener("radius_changed", () => {
@@ -257,7 +247,7 @@ function openEditor(){
    واجهة المستخدم
 ========================= */
 function wireUi(){
-  // إضافة موقع
+  // إضافة موقع جديد (بنقرة على الخريطة)
   $("#addCircleBtn")?.addEventListener("click", () => {
     $("#addHint")?.classList.remove("hidden");
     const once = map.addListener("click", (e) => {
@@ -277,12 +267,8 @@ function wireUi(){
         editable: true
       });
 
-      const label = makeCenterLabel(e.latLng, "بدون اسم");
-      label.map = map;
-
       const obj = {
         circle: c,
-        label,
         __data: {
           name:"", security:"", notes:"",
           lat:e.latLng.lat(), lng:e.latLng.lng(),
@@ -297,7 +283,7 @@ function wireUi(){
     });
   });
 
-  // مشاركة
+  // مشاركة (ينشئ رابط view.html)
   $("#shareBtn")?.addEventListener("click", () => {
     const data = collectState();
     const encoded = encodeData(data);
@@ -305,7 +291,7 @@ function wireUi(){
     navigator.clipboard?.writeText(url).then(()=>alert("تم نسخ رابط العرض!")).catch(()=>prompt("انسخ الرابط:", url));
   });
 
-  // Drawer للجوال
+  // Drawer (الجوال)
   $("#closeEditor")?.addEventListener("click", () => {
     $(".sidebar")?.classList.remove("open");
     $("#drawerBackdrop")?.classList.add("hidden");
@@ -323,9 +309,7 @@ function wireUi(){
   edName()?.addEventListener("input", () => {
     if(!selected) return;
     selected.__data.name = edName().value;
-    // حدّث اللافتة
-    selected.label.content.textContent = edName().value || "بدون اسم";
-    // حدّث المعاينة
+    // تحديث الكرت المفتوح (إن كان ظاهرًا)
     infoWindow.setContent(infoHtml(selected.__data));
   });
   edSecurity()?.addEventListener("input", () => { if(!selected) return; selected.__data.security = edSecurity().value; });
@@ -349,8 +333,8 @@ function wireUi(){
     selected.circle.setOptions({ fillOpacity: v });
   });
 
-  edRadius()?.addEventListener("input", () => syncRadiusFromSlider());
-  edRadiusNum()?.addEventListener("input", () => syncRadiusFromNumber());
+  edRadius()?.addEventListener("input", syncRadiusFromSlider);
+  edRadiusNum()?.addEventListener("input", syncRadiusFromNumber);
 
   edDraggable()?.addEventListener("change", () => { if(!selected) return; selected.circle.setDraggable(edDraggable().checked); });
   edEditable()?.addEventListener("change", () =>  { if(!selected) return; selected.circle.setEditable(edEditable().checked); });
@@ -360,7 +344,6 @@ function wireUi(){
     if(!selected) return;
     if(!confirm("حذف هذه الدائرة؟")) return;
     selected.circle.setMap(null);
-    selected.label.map = null;
     circles = circles.filter(o => o !== selected);
     selected = null;
     $("#editor")?.classList.add("hidden");
@@ -385,14 +368,8 @@ function wireUi(){
       draggable: true,
       editable: true
     });
-    const label = makeCenterLabel(pos, selected.__data.name || "بدون اسم");
-    label.map = map;
 
-    const clone = {
-      circle: c,
-      label,
-      __data: { ...selected.__data, lat: pos.lat, lng: pos.lng }
-    };
+    const clone = { circle: c, __data: { ...selected.__data, lat: pos.lat, lng: pos.lng } };
     circles.push(clone);
     bindCircleEvents(clone);
     setSelected(clone);
