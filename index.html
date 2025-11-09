@@ -9,13 +9,18 @@
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", Arial, sans-serif; }
     #map { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
 
+    /* شريط علوي ثابت مع مراعاة حواف الأجهزة (notch) */
     .toolbar{
-      position:fixed; top:12px; right:12px; z-index:10;
+      position:fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      right: calc(env(safe-area-inset-right, 0px) + 12px);
+      z-index: 99999; /* أعلى من أي كرت */
       display:flex; gap:6px; align-items:center;
       background:rgba(22,22,24,.55); color:#fff;
       border:1px solid rgba(255,255,255,.12);
       border-radius:14px; padding:8px;
       backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      pointer-events: auto;
     }
     .btn{
       height:34px; padding:0 10px; border-radius:10px; cursor:pointer;
@@ -25,6 +30,19 @@
     .badge{ font-size:12px; padding:2px 8px; border-radius:8px; border:1px solid rgba(255,255,255,.18); }
     .badge-share{ background:rgba(255,255,255,0.08); }
     .badge-edit{ background:#1f5a1f; border-color:#2d7a2d; color:#d8ffd8; }
+
+    /* زر مشاركة عائم للجوال */
+    .fab{
+      position: fixed;
+      right: calc(env(safe-area-inset-right, 0px) + 16px);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+      width:56px; height:56px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      background:#0d6efd; color:#fff; border:none; cursor:pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.35);
+      z-index: 99999;
+    }
+    .fab.hidden{ display:none; }
 
     /* أخفِ زر إغلاق نافذة المعلومات */
     .gm-style-iw button.gm-ui-hover-effect{ display:none !important; }
@@ -39,12 +57,13 @@
     .field input[type="color"]{ width:38px; height:28px; border:none; background:transparent; padding:0; }
     .note{ font-size:12px; color:#666; }
 
-    .toast { position: fixed; right: 14px; bottom: 14px; z-index: 15; background: rgba(22,22,24,0.85);
+    .toast { position: fixed; right: 14px; bottom: 14px; z-index: 100000; background: rgba(22,22,24,0.85);
       color:#fff; border:1px solid rgba(255,255,255,.12); padding:8px 12px; border-radius:10px; backdrop-filter: blur(10px); }
     .toast.hidden { display:none; }
 
     /* إخفاء زر التحرير تلقائياً في وضع المشاهدة فقط */
     body[data-viewonly="1"] #btnEditMode { display:none !important; }
+    body[data-viewonly="1"] #fabShare   { display:none !important; } /* ما نحتاج زر عائم في وضع العرض */
   </style>
 </head>
 <body>
@@ -58,6 +77,9 @@
     <button id="btnShare"     class="btn">مشاركة</button>
     <button id="btnEditMode"  class="btn">تحرير</button>
   </div>
+
+  <!-- زر مشاركة عائم للجوال، يظهر فقط في وضع التحرير -->
+  <button id="fabShare" class="fab hidden" aria-label="نسخ رابط المشاركة">🔗</button>
 
   <div id="toast" class="toast hidden"></div>
 
