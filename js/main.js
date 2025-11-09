@@ -1,5 +1,5 @@
 /* =======================
-   خريطة الأمن – main.js  (c3 short share)
+   خريطة الأمن – main.js  (c3 short share, mobile-safe)
    ======================= */
 
 /* ---------- Utilities ---------- */
@@ -12,8 +12,8 @@ function b64d(s){ return decodeURIComponent(escape(atob(s))); }
 function toUrl(b){ return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
 function fromUrl(u){ let b=u.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4)b+='='; return b; }
 
-/* ---------- LZ-String (نسخة مصغرة لاستخدام طريقتَي URI فقط) ---------- */
-/* المصدر الأصلي: pieroxy/lz-string – هذه نسخة مختزلة لطريقتي compressToEncodedURIComponent/decompressFromEncodedURIComponent */
+/* ---------- LZ-String (نسخة مصغرة – آمنة للـ URI بدون استخدام +) ---------- */
+/* المصدر الأصلي: pieroxy/lz-string – معدّلة لإرجاع/أخذ سلاسل encodeURIComponent الخالصة */
 const LZ = (function(){
   function o(r){return String.fromCharCode(r);}
   const keyURI = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
@@ -24,86 +24,72 @@ const LZ = (function(){
   }
   function compressToEncodedURIComponent(input){
     if(input==null) return "";
-    return _compress(input, 6, function(a){ return keyURI.charAt(a); });
+    return _compress(input, 6, a => keyURI.charAt(a));
   }
   function _compress(uncompressed, bitsPerChar, getCharFromInt){
     if(uncompressed==null) return "";
     let i, value,
-      context_dictionary={}, context_dictionaryToCreate={},
-      context_c="", context_wc="", context_w="", context_enlargeIn=2,
-      context_dictSize=3, context_numBits=2,
-      context_data=[], context_data_val=0, context_data_position=0;
-    for(i=0;i<uncompressed.length;i+=1){
-      context_c = uncompressed.charAt(i);
-      if(!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)){
-        context_dictionary[context_c]=context_dictSize++;
-        context_dictionaryToCreate[context_c]=true;
-      }
-      context_wc = context_w + context_c;
-      if(Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)){
-        context_w = context_wc;
-      } else {
-        if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){
-          if(context_w.charCodeAt(0)<256){
-            for(i=0;i<context_numBits;i++){ context_data_val = (context_data_val<<1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; }
-            value=context_w.charCodeAt(0);
-            for(i=0;i<8;i++){ context_data_val = (context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
-          } else {
+      dict={}, dictCreate={}, c="", wc="", w="", enlargeIn=2,
+      dictSize=3, numBits=2, out=[], outVal=0, outPos=0;
+    for(i=0;i<uncompressed.length;i++){
+      c = uncompressed.charAt(i);
+      if(!Object.prototype.hasOwnProperty.call(dict,c)){ dict[c]=dictSize++; dictCreate[c]=true; }
+      wc = w + c;
+      if(Object.prototype.hasOwnProperty.call(dict,wc)){ w = wc; }
+      else{
+        if(Object.prototype.hasOwnProperty.call(dictCreate,w)){
+          if(w.charCodeAt(0)<256){
+            for(i=0;i<numBits;i++){ outVal=(outVal<<1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; }
+            value=w.charCodeAt(0);
+            for(i=0;i<8;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
+          }else{
             value=1;
-            for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1)|value; if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value=0; }
-            value=context_w.charCodeAt(0);
-            for(i=0;i<16;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
+            for(i=0;i<numBits;i++){ outVal=(outVal<<1)|value; if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value=0; }
+            value=w.charCodeAt(0);
+            for(i=0;i<16;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
           }
-          context_enlargeIn--;
-          if(context_enlargeIn==0){ context_enlargeIn=Math.pow(2,context_numBits); context_numBits++; }
-          delete context_dictionaryToCreate[context_w];
-        } else {
-          value=context_dictionary[context_w];
-          for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
+          enlargeIn--; if(enlargeIn==0){ enlargeIn=Math.pow(2,numBits); numBits++; }
+          delete dictCreate[w];
+        }else{
+          value=dict[w];
+          for(i=0;i<numBits;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
         }
-        context_enlargeIn--;
-        if(context_enlargeIn==0){ context_enlargeIn=Math.pow(2,context_numBits); context_numBits++; }
-        context_dictionary[context_wc]=context_dictSize++;
-        context_w=String(context_c);
+        enlargeIn--; if(enlargeIn==0){ enlargeIn=Math.pow(2,numBits); numBits++; }
+        dict[wc]=dictSize++; w=String(c);
       }
     }
-    if(context_w!==""){
-      if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){
-        if(context_w.charCodeAt(0)<256){
-          for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; }
-          value=context_w.charCodeAt(0);
-          for(i=0;i<8;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
-        } else {
+    if(w!==""){
+      if(Object.prototype.hasOwnProperty.call(dictCreate,w)){
+        if(w.charCodeAt(0)<256){
+          for(i=0;i<numBits;i++){ outVal=(outVal<<1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; }
+          value=w.charCodeAt(0);
+          for(i=0;i<8;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
+        }else{
           value=1;
-          for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1)|value; if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value=0; }
-          value=context_w.charCodeAt(0);
-          for(i=0;i<16;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
+          for(i=0;i<numBits;i++){ outVal=(outVal<<1)|value; if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value=0; }
+          value=w.charCodeAt(0);
+          for(i=0;i<16;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
         }
-        context_enlargeIn--;
-        if(context_enlargeIn==0){ context_enlargeIn=Math.pow(2,context_numBits); context_numBits++; }
-        delete context_dictionaryToCreate[context_w];
-      } else {
-        value=context_dictionary[context_w];
-        for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
+        enlargeIn--; if(enlargeIn==0){ enlargeIn=Math.pow(2,numBits); numBits++; }
+        delete dictCreate[w];
+      }else{
+        value=dict[w];
+        for(i=0;i<numBits;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
       }
-      context_enlargeIn--;
-      if(context_enlargeIn==0){ context_enlargeIn=Math.pow(2,context_numBits); context_numBits++; }
+      enlargeIn--; if(enlargeIn==0){ enlargeIn=Math.pow(2,numBits); numBits++; }
     }
     value=2;
-    for(i=0;i<context_numBits;i++){ context_data_val=(context_data_val<<1)|(value&1); if(context_data_position==bitsPerChar-1){ context_data_position=0; context_data.push(getCharFromInt(context_data_val)); context_data_val=0; } else context_data_position++; value>>=1; }
-
-    while(true){
-      context_data_val=(context_data_val<<1);
-      if(context_data_position==bitsPerChar-1){ context_data.push(getCharFromInt(context_data_val)); break; }
-      else context_data_position++;
-    }
-    return encodeURIComponent(context_data.join('')).replace(/%20/g,'+');
+    for(i=0;i<numBits;i++){ outVal=(outVal<<1)|(value&1); if(outPos==bitsPerChar-1){ outPos=0; out.push(getCharFromInt(outVal)); outVal=0; } else outPos++; value>>=1; }
+    while(true){ outVal=(outVal<<1); if(outPos==bitsPerChar-1){ out.push(getCharFromInt(outVal)); break; } else outPos++; }
+    // ⚠️ نعيد النص من غير استبدال %20 بـ +  (مهم للجوال)
+    return encodeURIComponent(out.join(''));
   }
   function decompressFromEncodedURIComponent(input){
     if(input==null) return "";
-    input = decodeURIComponent(input.replace(/\+/g, '%20'));
+    // لا نستبدل + إطلاقًا — ندخل النص كما هو لـ decodeURIComponent
+    input = decodeURIComponent(input);
     if(input=="") return null;
-    return _decompress(input.length, 32, function(index){ return input.charCodeAt(index); });
+    return _decompress(input.length, 32, index => input.charCodeAt(index));
   }
   function _decompress(length, resetValue, getNextValue){
     const dictionary=[], result=[], data={val:getNextValue(0), position:resetValue, index:1};
@@ -120,16 +106,11 @@ const LZ = (function(){
       return bits;
     }
     let next = readBits(2);
-    switch(next){
-      case 0: c=o(readBits(8)); break;
-      case 1: c=o(readBits(16)); break;
-      case 2: return "";
-    }
+    switch(next){ case 0: c=o(readBits(8)); break; case 1: c=o(readBits(16)); break; case 2: return ""; }
     dictionary[3] = w = c; result.push(c);
     while(true){
       if(data.index>length) return "";
-      const cc = readBits(numBits);
-      let code = cc;
+      const cc = readBits(numBits); let code = cc;
       if(code===0){ c=o(readBits(8)); dictionary[dictSize++]=c; code=dictSize-1; enlargeIn--; }
       else if(code===1){ c=o(readBits(16)); dictionary[dictSize++]=c; code=dictSize-1; enlargeIn--; }
       else if(code===2){ return result.join(''); }
@@ -144,7 +125,7 @@ const LZ = (function(){
   return { cURI: compressToEncodedURIComponent, dURI: decompressFromEncodedURIComponent };
 })();
 
-/* ---------- ترميز المواقع (c2) – سنستخدمه كطبقة قبل ضغط c3 ---------- */
+/* ---------- ترميز المواقع (c2) – كطبقة قبل ضغط c3 ---------- */
 const DEF_STYLE = { radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 };
 const nToB36 = n => Math.round(n).toString(36);
 const b36ToN = s => parseInt(s,36);
@@ -175,16 +156,15 @@ function unpackSite(a){
   return { id:'s-'+Math.random().toString(36).slice(2,8), name, type, lat, lng, recipients: recStr?recStr.split('|'):[], style };
 }
 
+/* ---------- الصيغ ---------- */
 function encC2(state){ return toUrl(b64e(JSON.stringify({v:'c2', t: state.traffic?1:0, s: state.sites.map(packSite)}))); }
 function decC2(s){
   try{ const o = JSON.parse(b64d(fromUrl(s))); if(o && o.v==='c2' && Array.isArray(o.s)) return { traffic:!!o.t, sites:o.s.map(unpackSite) }; }catch{}
   return null;
 }
-
-/* ---------- الصيغة القصيرة c3 (c2 مضغوط LZURI) ---------- */
 function encC3(state){
   const c2json = JSON.stringify({v:'c2', t: state.traffic?1:0, s: state.sites.map(packSite)});
-  return 'c3.'+ LZ.cURI(c2json);   // بادئة تمييز
+  return 'c3.'+ LZ.cURI(c2json);     // أقصر + آمن للجوال (بدون +)
 }
 function decC3(x){
   try{
@@ -196,7 +176,7 @@ function decC3(x){
   return null;
 }
 
-/* ---------- التخزين المحلي ---------- */
+/* ---------- التخزين ---------- */
 const LS_KEY='security:state.v3';
 const loadLocal=()=>{ try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch{return null;} };
 const saveLocal=s=>{ try{localStorage.setItem(LS_KEY,JSON.stringify(s));}catch{} };
@@ -230,7 +210,6 @@ function defaultState(){
 /* =====================  التطبيق  ===================== */
 window.initMap = function () {
   const sp = qs();
-  // اكتشاف وضع العرض + مصدر الحالة
   const isShare = (sp.get('view')||'').toLowerCase()==='share' || !!sp.get('s') || !!sp.get('x');
   if (isShare){ document.body.classList.add('share'); document.getElementById('panel')?.remove(); document.getElementById('editor')?.remove(); document.getElementById('edit-actions')?.remove(); }
 
@@ -242,14 +221,12 @@ window.initMap = function () {
     state = loadLocal() || state;
   }
 
-  // الخريطة
   const map = new google.maps.Map(document.getElementById('map'), {
     center:{lat:24.7418,lng:46.5758}, zoom:14, mapTypeId:'roadmap',
     gestureHandling:'greedy', disableDefaultUI:false, mapTypeControl:true, zoomControl:true,
     streetViewControl:false, fullscreenControl:true
   });
 
-  // حركة المرور
   const trafficLayer = new google.maps.TrafficLayer();
   let trafficOn = !!state.traffic;
   const trafficBtn = document.getElementById('traffic-toggle');
@@ -257,7 +234,6 @@ window.initMap = function () {
   setTraffic(trafficOn);
   trafficBtn?.addEventListener('click',()=>setTraffic(!trafficOn));
 
-  // كرت المعلومات
   const card=document.getElementById('info-card');
   const nameEl=document.getElementById('site-name');
   const typeEl=document.getElementById('site-type');
@@ -409,8 +385,8 @@ window.initMap = function () {
     // مشاركة قصيرة c3 + منع الكاش
     async function doShare(){
       const snap = snapshotFromMap();
-      const x = encC3(snap);                                     // c3 short
-      const url = `${location.origin}${location.pathname}?view=share&x=${x}&t=${Date.now()}`; // منع الكاش
+      const x = encC3(snap);   // c3 آمن للجوال
+      const url = `${location.origin}${location.pathname}?view=share&x=${x}&t=${Date.now()}`;
       previewBox?.classList.remove('hidden');
       if(shareInput) shareInput.value=url;
 
