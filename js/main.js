@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v10 (fix cards+edit, robust init, perf throttle, short share) */
+/* Diriyah Security Map – v10.1 (unpin on map click + robust init + cards + edit) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -174,6 +174,14 @@ function boot(){
   else { writeShare(buildState()); }
 
   map.addListener('idle', persist);
+
+  /* <<< الجديد: إلغاء تثبيت الكرت عند الضغط على الخريطة >>> */
+  map.addListener('click', () => {
+    if (cardPinned && infoWin) {
+      infoWin.close();
+      cardPinned = false;
+    }
+  });
 }
 
 /* ---------------- Card ---------------- */
