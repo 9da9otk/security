@@ -74,7 +74,7 @@ const LS_KEY = 'security:state.v3';
 function loadLocal(){ try{ const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; }catch{ return null; } }
 function saveLocal(state){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch{} }
 
-// ===== الحالة الافتراضية =====
+// ===== الحالة الافتراضية (مواقعك) =====
 function defaultState(){
   const S = (name,lat,lng,type) => ({
     id: 's-' + Math.random().toString(36).slice(2,8),
@@ -180,26 +180,6 @@ window.initMap = function () {
   }
   function closeCard(){ card.classList.add('hidden'); selectedId=null; hoverId=null; }
 
-  // لقطة لحظية للحالة الحالية
-  function snapshotState(){
-    const sites = Object.values(byId).map(s => ({
-      id: s.id,
-      name: s.name,
-      type: s.type || '',
-      lat: Number(s.lat),
-      lng: Number(s.lng),
-      recipients: Array.isArray(s.recipients) ? s.recipients.slice() : [],
-      style: {
-        radius: Number(s.style?.radius ?? 15),
-        fill: (s.style?.fill || '#60a5fa').toLowerCase(),
-        fillOpacity: Number(s.style?.fillOpacity ?? 0.16),
-        stroke: (s.style?.stroke || '#60a5fa').toLowerCase(),
-        strokeWeight: Number(s.style?.strokeWeight ?? 2)
-      }
-    }));
-    return { traffic: trafficOn, sites };
-  }
-
   function syncFeature(site){
     const m = markers.find(x => x.__id === site.id);
     const c = circles.find(x => x.__id === site.id);
@@ -215,7 +195,7 @@ window.initMap = function () {
       radiusEl.textContent = `${site.style.radius} م`;
       recEl.textContent = renderRecipients(site.recipients);
     }
-    if (!isShare) saveLocal(snapshotState());
+    if (!isShare) saveLocal(snapshotFromMap());
   }
 
   function createFeature(site){
@@ -255,12 +235,12 @@ window.initMap = function () {
     });
   }
 
-  // ====== إنشاء المواقع + حدود الخريطة (تعريف واحد فقط لـ bounds) ======
+  // ====== إنشاء المواقع + حدود الخريطة (تعريف واحد لـ bounds) ======
   const bounds = new google.maps.LatLngBounds();
   state.sites.forEach(s => { createFeature(s); bounds.extend({lat:s.lat, lng:s.lng}); });
   if (isShare && !bounds.isEmpty()) map.fitBounds(bounds, 60);
 
-  // ===== أدوات التحرير (الوضع العادي فقط) =====
+  // ===== محرّر/مشاركة (الوضع العادي فقط) =====
   if (!isShare) {
     const toggleMarkers = document.getElementById('toggle-markers');
     const toggleCircles = document.getElementById('toggle-circles');
@@ -296,7 +276,7 @@ window.initMap = function () {
       const site = { id:'s-'+Math.random().toString(36).slice(2,8), name:'موقع جديد', type:'نقطة', lat:c.lat(), lng:c.lng(),
         recipients:[], style:{ ...DEF_STYLE } };
       state.sites.push(site); createFeature(site); bounds.extend({lat:site.lat,lng:site.lng});
-      pinnedId = site.id; openCard(site); saveLocal(snapshotState());
+      pinnedId = site.id; openCard(site); saveLocal(snapshotFromMap());
     });
     btnDel.addEventListener('click', () => {
       if (!selectedId) return;
@@ -308,7 +288,7 @@ window.initMap = function () {
         if (cIdx>=0){ circles[cIdx].setMap(null); circles.splice(cIdx,1); }
         delete byId[selectedId];
         state.sites.splice(i,1);
-        pinnedId=null; closeCard(); saveLocal(snapshotState());
+        pinnedId=null; closeCard(); saveLocal(snapshotFromMap());
       }
     });
 
@@ -327,27 +307,61 @@ window.initMap = function () {
       const val = document.getElementById('editor-input').value || '';
       s.recipients = val.split('\n').map(x=>x.trim()).filter(Boolean);
       document.getElementById('editor').classList.add('hidden');
-      syncFeature(s); saveLocal(snapshotState());
+      syncFeature(s); saveLocal(snapshotFromMap());
     });
 
-    // ===== مشاركة: لقطة فورية + معاينة + نسخ =====
-    shareBtnEl.addEventListener('click', async () => {
-      const s = encodeShareState(snapshotState());
-      const url = `${location.origin}${location.pathname}?view=share&s=${s}`;
+    // ===== لقطة من عناصر الخريطة الحيّة + مشاركة =====
+    function normHex(c){ c=(c||'#60a5fa').toLowerCase(); return c.startsWith('#')?c:('#'+c); }
+    function snapshotFromMap(){
+      const editor = document.getElementById('editor');
+      if (editor && !editor.classList.contains('hidden') && typeof selectedId === 'string') {
+        const s = byId[selectedId];
+        if (s) {
+          const raw = (document.getElementById('editor-input').value || '')
+            .split('\n').map(x=>x.trim()).filter(Boolean);
+          s.recipients = raw;
+        }
+      }
+      const sites = circles.map(circ => {
+        const id = circ.__id;
+        const s  = byId[id] || {};
+        const center = circ.getCenter();
+        return {
+          id,
+          name: s.name || '',
+          type: s.type || '',
+          lat: +center.lat(),
+          lng: +center.lng(),
+          recipients: Array.isArray(s.recipients) ? s.recipients.slice() : [],
+          style: {
+            radius: +circ.getRadius(),
+            fill:   normHex(circ.get('fillColor')),
+            fillOpacity: +circ.get('fillOpacity'),
+            stroke: normHex(circ.get('strokeColor')),
+            strokeWeight: +(circ.get('strokeWeight') || 2)
+          }
+        };
+      });
+      return { traffic: trafficOn, sites };
+    }
 
+    const doShare = async () => {
+      const snap = snapshotFromMap();
+      const s = encodeShareState(snap);
+      const url = `${location.origin}${location.pathname}?view=share&s=${s}`;
       previewBox?.classList.remove('hidden');
       if (shareInput) shareInput.value = url;
-
       let copied = false;
       try { await navigator.clipboard.writeText(url); copied = true; } catch {}
       if (!copied && shareInput){ shareInput.focus(); shareInput.select(); }
-
       if (toastEl){
         toastEl.textContent = copied ? 'تم النسخ ✅' : 'انسخ الرابط من الحقل ↑';
         toastEl.classList.remove('hidden');
         setTimeout(()=>toastEl.classList.add('hidden'), 2000);
       }
-    });
+    };
+
+    shareBtnEl.addEventListener('click', doShare);
     openBtn?.addEventListener('click', () => {
       if (!shareInput?.value) return;
       window.open(shareInput.value, '_blank');
