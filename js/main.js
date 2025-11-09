@@ -1,16 +1,16 @@
-/* Security Map – v3.1 (Share/Edit)
-   - زر تحرير يفك قفل وضع العرض إن كان الرابط يحتوي #s=.. ثم يفعّل التحرير
-   - كرت معلومات + تفاعلات الدوائر (hover/click)
-   - قائمة منسدلة لتحرير الدائرة (اللون/نصف القطر/الملاحظات/حذف/حفظ)
-   - روابط مشاركة قصيرة تحمل الحالة
+/* Security Map – v3.2 (Share/Edit)
+   - كرت معلومات مضمون الظهور (إجبار display + zIndex)
+   - زر تحرير يفك قفل #s=.. إن وجد، ثم يفعّل وضع التحرير
+   - قائمة ⚙️ لتحرير الدائرة (لون/نصف القطر/ملاحظات/حذف/حفظ)
+   - روابط مشاركة قصيرة تحمل الإعدادات (خريطة/مرور/مستلمين/دوائر/ملاحظات/مركز/زووم)
 */
 
 let map, trafficLayer;
 let cardPinned = false;
-let editMode = false;       // يفعّل من الزر
-let shareMode = false;      // true إذا كان الرابط فيه s=
-let circles = [];           // [{id, circle, meta}]
-let activeItem = null;
+let editMode = false;     // يُفعّل من الزر
+let shareMode = false;    // true إذا الرابط يحتوي s=
+let circles = [];         // [{id, circle, meta}]
+let activeItem = null;    // {id, circle, meta}
 
 let btnRoadmap, btnSatellite, btnTraffic, btnRecipients, btnEditMode, modeBadge;
 let infoCard, infoTitle, infoSubtitle, infoLatLng, infoRadius, infoNotesRow, infoNotes, pinCard, closeCard;
@@ -23,30 +23,30 @@ const DEFAULT_RADIUS = 15;
 const DEFAULT_COLOR = '#c1a476';
 const DEFAULT_FILL_OPACITY = 0.15;
 
-/* --- مواقعك (أسماء عربية + إحداثيات) --- */
+/* مواقعك (أسماء عربية + إحداثيات) */
 const LOCATIONS = [
-  { id: 0,  name: "بوابة سمحان",                         lat: 24.742132284177778, lng: 46.569503913805825, notes: "" },
-  { id: 1,  name: "منطقة سمحان",                         lat: 24.74091335108621,  lng: 46.571891407130025, notes: "" },
-  { id: 2,  name: "دوار البجيري",                        lat: 24.737521801476476, lng: 46.57406918772067,  notes: "" },
-  { id: 3,  name: "إشارة البجيري",                       lat: 24.73766260194535,  lng: 46.575429040147306, notes: "" },
-  { id: 4,  name: "طريق الملك فيصل",                     lat: 24.736133848943062, lng: 46.57696607050239,  notes: "" },
-  { id: 5,  name: "نقطة فرز الشلهوب",                    lat: 24.73523670533632,  lng: 46.57785639752234,  notes: "" },
-  { id: 6,  name: "المسار الرياضي المديد",               lat: 24.735301077804944, lng: 46.58178092599035,  notes: "" },
-  { id: 7,  name: "ميدان الملك سلمان",                   lat: 24.73611373368281,  lng: 46.58407097038162,  notes: "" },
-  { id: 8,  name: "دوار الضوء الخافت",                    lat: 24.739718342668006, lng: 46.58352614787052,  notes: "" },
-  { id: 9,  name: "المسار الرياضي طريق الملك خالد الفرعي",lat: 24.740797019998627, lng: 46.5866145907347,   notes: "" },
-  { id:10,  name: "دوار البلدية",                         lat: 24.739266101368777, lng: 46.58172727078356,  notes: "" },
-  { id:11,  name: "مدخل ساحة البلدية الفرعي",            lat: 24.738638518378387, lng: 46.579858026042785, notes: "" },
-  { id:12,  name: "مدخل مواقف البجيري (كار بارك)",       lat: 24.73826438056506,  lng: 46.57789576275729,  notes: "" },
-  { id:13,  name: "مواقف الامن",                          lat: 24.73808736962705,  lng: 46.57771858346317,  notes: "" },
-  { id:14,  name: "دوار الروقية",                         lat: 24.741985907266145, lng: 46.56269186990043,  notes: "" },
-  { id:15,  name: "بيت مبارك",                            lat: 24.732609768937607, lng: 46.57827089439368,  notes: "" },
-  { id:16,  name: "دوار وادي صفار",                       lat: 24.72491458984474,  lng: 46.57345489743978,  notes: "" },
-  { id:17,  name: "دوار راس النعامة",                     lat: 24.710329841152387, lng: 46.572921959358204, notes: "" },
-  { id:18,  name: "مزرعة الحبيب",                         lat: 24.709445443672344, lng: 46.593971867951346, notes: "" },
+  { id: 0,  name: "بوابة سمحان",                          lat: 24.742132284177778, lng: 46.569503913805825, notes: "" },
+  { id: 1,  name: "منطقة سمحان",                          lat: 24.74091335108621,  lng: 46.571891407130025, notes: "" },
+  { id: 2,  name: "دوار البجيري",                         lat: 24.737521801476476, lng: 46.57406918772067,  notes: "" },
+  { id: 3,  name: "إشارة البجيري",                        lat: 24.73766260194535,  lng: 46.575429040147306, notes: "" },
+  { id: 4,  name: "طريق الملك فيصل",                      lat: 24.736133848943062, lng: 46.57696607050239,  notes: "" },
+  { id: 5,  name: "نقطة فرز الشلهوب",                     lat: 24.73523670533632,  lng: 46.57785639752234,  notes: "" },
+  { id: 6,  name: "المسار الرياضي المديد",                lat: 24.735301077804944, lng: 46.58178092599035,  notes: "" },
+  { id: 7,  name: "ميدان الملك سلمان",                    lat: 24.73611373368281,  lng: 46.58407097038162,  notes: "" },
+  { id: 8,  name: "دوار الضوء الخافت",                     lat: 24.739718342668006, lng: 46.58352614787052,  notes: "" },
+  { id: 9,  name: "المسار الرياضي طريق الملك خالد الفرعي", lat: 24.740797019998627, lng: 46.5866145907347,   notes: "" },
+  { id:10,  name: "دوار البلدية",                          lat: 24.739266101368777, lng: 46.58172727078356,  notes: "" },
+  { id:11,  name: "مدخل ساحة البلدية الفرعي",             lat: 24.738638518378387, lng: 46.579858026042785, notes: "" },
+  { id:12,  name: "مدخل مواقف البجيري (كار بارك)",        lat: 24.73826438056506,  lng: 46.57789576275729,  notes: "" },
+  { id:13,  name: "مواقف الامن",                           lat: 24.73808736962705,  lng: 46.57771858346317,  notes: "" },
+  { id:14,  name: "دوار الروقية",                          lat: 24.741985907266145, lng: 46.56269186990043,  notes: "" },
+  { id:15,  name: "بيت مبارك",                             lat: 24.732609768937607, lng: 46.57827089439368,  notes: "" },
+  { id:16,  name: "دوار وادي صفار",                        lat: 24.72491458984474,  lng: 46.57345489743978,  notes: "" },
+  { id:17,  name: "دوار راس النعامة",                      lat: 24.710329841152387, lng: 46.572921959358204, notes: "" },
+  { id:18,  name: "مزرعة الحبيب",                          lat: 24.709445443672344, lng: 46.593971867951346, notes: "" },
 ];
 
-/* ===== مشاركة: ترميز/فك ترميز ===== */
+/* ===== مشاركة مختصرة: ترميز/فك ترميز ===== */
 function encodeState(obj){
   try{
     const json = JSON.stringify(obj);
@@ -119,7 +119,7 @@ function persistShareThrottled(){
   persistTimer = setTimeout(()=> writeShareToken(buildShareState()), 220);
 }
 
-/* ===== خريطة Google + دوائر ===== */
+/* ===== دوائر + تفاعلات ===== */
 function addCircleForLocation(loc){
   const center = new google.maps.LatLng(loc.lat, loc.lng);
   const circle = new google.maps.Circle({
@@ -136,15 +136,20 @@ function addCircleForLocation(loc){
     editable: false,
   });
 
-  circle.addListener("mouseover", () => { if(!cardPinned) showInfo({id:loc.id, meta:loc, circle}); });
-  circle.addListener("mouseout",  () => { if(!cardPinned) hideInfoCard(); });
-  circle.addListener("click",     () => {
-    showInfo({id:loc.id, meta:loc, circle});
+  // تفاعلات آمنة
+  google.maps.event.addListener(circle, 'mouseover', () => {
+    if (!cardPinned) showInfo({ id: loc.id, meta: loc, circle });
+  });
+  google.maps.event.addListener(circle, 'mouseout', () => {
+    if (!cardPinned) hideInfoCard();
+  });
+  google.maps.event.addListener(circle, 'click', () => {
+    showInfo({ id: loc.id, meta: loc, circle });
     cardPinned = true;
-    pinCard.setAttribute('aria-pressed','true');
+    pinCard.setAttribute('aria-pressed', 'true');
   });
 
-  circles.push({ id: loc.id, circle, meta: {...loc} });
+  circles.push({ id: loc.id, circle, meta: { ...loc } });
 }
 
 function setMapType(type, silent=false){
@@ -154,10 +159,12 @@ function setMapType(type, silent=false){
   if (!silent) persistShareThrottled();
 }
 
+/* ===== كرت المعلومات (إجبار الإظهار) ===== */
 function showInfo(item){
   activeItem = item;
-  const {meta, circle} = item;
+  const { meta, circle } = item;
   const c = circle.getCenter();
+
   infoTitle.textContent = meta.name || '—';
   infoSubtitle.textContent = meta.notes || '';
   infoLatLng.textContent = `${c.lat().toFixed(6)}, ${c.lng().toFixed(6)}`;
@@ -170,6 +177,12 @@ function showInfo(item){
     infoNotesRow.classList.add('hidden');
   }
 
+  // إجبار الإظهار فوق الخريطة دائمًا
+  infoCard.classList.remove('hidden');
+  infoCard.style.display = 'block';
+  infoCard.style.zIndex = '9999';
+
+  // تحديث قائمة التحرير لو الوضع مفعّل
   if (editMode){
     gearBtn.style.display = 'inline-flex';
     editColor.value = (circle.get('strokeColor') || DEFAULT_COLOR);
@@ -180,12 +193,12 @@ function showInfo(item){
     gearBtn.style.display = 'none';
     editDropdown.classList.remove('open');
   }
-
-  infoCard.classList.remove('hidden');
 }
+
 function hideInfoCard(){
   if (!cardPinned){
     infoCard.classList.add('hidden');
+    infoCard.style.display = 'none';
     editDropdown.classList.remove('open');
   }
 }
@@ -212,7 +225,7 @@ function onSaveRecipients(){
   persistShareThrottled();
 }
 
-/* ===== إشعار ===== */
+/* ===== إشعار بسيط ===== */
 let toastTimer;
 function showToast(msg){
   toast.textContent = msg;
@@ -224,13 +237,29 @@ function showToast(msg){
 /* ===== وضع التحرير ===== */
 function setEditMode(on){
   editMode = !!on;
-  if (shareMode) editMode = false;  // حماية
+  if (shareMode) editMode = false;  // حماية: لا تحرير في روابط المشاركة
+
   modeBadge.textContent = editMode ? 'Edit' : 'Share';
   modeBadge.className = editMode ? 'badge-edit' : 'mode-badge badge-share';
-  if (editMode && activeItem){ gearBtn.style.display = 'inline-flex'; }
-  else { gearBtn.style.display = 'none'; editDropdown.classList.remove('open'); }
+
+  if (editMode) {
+    // إن ما فيه عنصر نشط، افتح أول دائرة تلقائيًا
+    if (!activeItem && circles.length){
+      const first = circles[0];
+      showInfo(first);
+      cardPinned = true;
+      pinCard.setAttribute('aria-pressed','true');
+    }
+    if (activeItem) gearBtn.style.display = 'inline-flex';
+  } else {
+    gearBtn.style.display = 'none';
+    editDropdown.classList.remove('open');
+    cardPinned = false;
+  }
+
   showToast(editMode ? 'تم تفعيل وضع التحرير' : 'تم إلغاء وضع التحرير');
 }
+
 function toggleDropdown(){
   if (!editMode || !activeItem) return;
   editDropdown.classList.toggle('open');
@@ -239,7 +268,7 @@ function toggleDropdown(){
 
 /* ===== initMap ===== */
 function initMap(){
-  // DOM
+  // DOM refs
   btnRoadmap = document.getElementById('btnRoadmap');
   btnSatellite = document.getElementById('btnSatellite');
   btnTraffic = document.getElementById('btnTraffic');
@@ -273,7 +302,7 @@ function initMap(){
   cancelRecipients = document.getElementById('cancelRecipients');
   toast = document.getElementById('toast');
 
-  // Map
+  // الخريطة
   map = new google.maps.Map(document.getElementById('map'), {
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
@@ -288,9 +317,9 @@ function initMap(){
   btnRoadmap.addEventListener('click', () => setMapType('roadmap'));
   btnSatellite.addEventListener('click', () => setMapType('hybrid'));
   btnTraffic.addEventListener('click', () => {
-    const v = btnTraffic.getAttribute('aria-pressed')==='true';
-    if(v){trafficLayer.setMap(null);btnTraffic.setAttribute('aria-pressed','false');}
-    else {trafficLayer.setMap(map);btnTraffic.setAttribute('aria-pressed','true');}
+    const v = btnTraffic.getAttribute('aria-pressed') === 'true';
+    if (v){ trafficLayer.setMap(null); btnTraffic.setAttribute('aria-pressed','false'); }
+    else   { trafficLayer.setMap(map);  btnTraffic.setAttribute('aria-pressed','true'); }
     persistShareThrottled();
   });
 
@@ -298,12 +327,17 @@ function initMap(){
   saveRecipients.addEventListener('click', onSaveRecipients);
   cancelRecipients.addEventListener('click', closeRecipientsEditor);
 
-  pinCard.addEventListener('click', () => { cardPinned=!cardPinned; pinCard.setAttribute('aria-pressed', String(cardPinned)); showToast(cardPinned ? 'تم تثبيت الكرت' : 'تم إلغاء تثبيت الكرت'); });
+  pinCard.addEventListener('click', () => {
+    cardPinned = !cardPinned;
+    pinCard.setAttribute('aria-pressed', String(cardPinned));
+    showToast(cardPinned ? 'تم تثبيت الكرت' : 'تم إلغاء تثبيت الكرت');
+  });
   closeCard.addEventListener('click', () => { cardPinned=false; hideInfoCard(); });
 
   gearBtn.addEventListener('click', toggleDropdown);
   btnCloseDropdown.addEventListener('click', toggleDropdown);
 
+  // محررات القائمة المنسدلة
   editRadius.addEventListener('input', () => {
     if (!activeItem) return;
     activeItem.circle.setRadius(+editRadius.value);
@@ -340,7 +374,6 @@ function initMap(){
   const S = readShareToken();
   shareMode = !!S;
   if (shareMode) {
-    // تعطيل التحرير افتراضيًا
     modeBadge.textContent = 'Share';
     modeBadge.className = 'mode-badge badge-share';
     applyShareState(S);
@@ -349,18 +382,18 @@ function initMap(){
     writeShareToken(buildShareState());
   }
 
-  // زر تحرير: لو كنت في Share، امسح الهاش ثم فعِّل التحرير
+  // زر تحرير: لو أنت في Share، امسح الهاش ثم فعّل التحرير
   btnEditMode.addEventListener('click', () => {
     if (shareMode){
-      history.replaceState(null, '', location.pathname); // يمسح #s= ويحوّل لوضع قابل للتحرير
+      history.replaceState(null, '', location.pathname); // يمسح #s=
       shareMode = false;
     }
     setEditMode(!editMode);
   });
 
-  // تحديث الهاش عند تحريك/تكبير
+  // تحديث الرابط عند التحريك/التكبير
   map.addListener('idle', persistShareThrottled);
 }
 
-// جاهزة قبل سكربت Google
+// تأكيد توفير initMap قبل سكربت Google
 window.initMap = initMap;
