@@ -3,89 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن</title>
+  <title>خريطة الأمن – اختبار تشغيل</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- الخريطة -->
-  <div id="map" aria-label="الخريطة"></div>
+  <div id="map" aria-label="الخريطة" role="application"></div>
+  <noscript>هذه الصفحة تتطلب تفعيل JavaScript لعرض خريطة Google.</noscript>
 
-  <!-- صندوق الطبقات -->
-  <div id="layersBox" class="card">
-    <div class="card-title">الطبقات</div>
-    <label class="row">
-      <span>نوع الخريطة</span>
-      <select id="mapTypeSelect">
-        <option value="roadmap">خريطة</option>
-        <option value="satellite">قمر صناعي</option>
-        <option value="hybrid">هجين</option>
-        <option value="terrain">تضاريس</option>
-      </select>
-    </label>
-    <label class="row"><input type="checkbox" id="layerTraffic" /> حركة المرور</label>
-    <label class="row"><input type="checkbox" id="layerTransit" /> النقل العام</label>
-    <label class="row"><input type="checkbox" id="layerBike" /> مسارات الدراجات</label>
-  </div>
+  <!-- ملفك أولاً -->
+  <script defer src="js/main.js"></script>
 
-  <!-- لوحة التحرير (تستطيع إخفاءها لاحقًا، المهم الآن أن الخريطة تعمل) -->
-  <aside id="editorPanel" class="panel">
-    <div class="panel-header">
-      <h3>لوحة التحكم</h3>
-    </div>
-    <div class="panel-body">
-      <button id="addCircleBtn" class="btn btn-primary">إضافة موقع +</button>
-      <button id="shareBtn" class="btn btn-secondary">مشاركة الخريطة</button>
-      <p class="hint">نصيحة: مرّر الماوس على الدائرة لعرض الكرت؛ على الجوال: اضغط/المس.</p>
+  <!-- سكربت خرائط Google: ضع المفتاح بدل XXXXX (بدون أي محارف خفية) -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=XXXXX&v=weekly&callback=initMap"></script>
 
-      <div class="section">
-        <div class="section-title">تحرير الدائرة</div>
+  <!-- مراقبة أخطاء التحميل من خرائط Google -->
+  <script>
+    window.addEventListener('error', (e) => {
+      try {
+        const u = new URL(e.filename || '');
+        if (u.host.includes('maps.googleapis.com')) {
+          console.error('فشل تحميل سكربت خرائط Google (تحقق من المفتاح/القيود/الشبكة).');
+        }
+      } catch {}
+    }, true);
 
-        <label class="label">اسم الموقع</label>
-        <input id="siteName" class="input" placeholder="مثال: دوار البجيري" />
-
-        <label class="label">أفراد الأمن (كل اسم في سطر)</label>
-        <textarea id="securityNames" class="textarea" placeholder="اكتب كل اسم في سطر"></textarea>
-
-        <label class="label">ملاحظات</label>
-        <textarea id="notes" class="textarea" placeholder="...ملاحظاتك"></textarea>
-
-        <div class="grid-2">
-          <div>
-            <label class="label">لون التعبئة</label>
-            <input type="color" id="fillColor" class="input" value="#a78bfa" />
-          </div>
-          <div>
-            <label class="label">لون الحدود</label>
-            <input type="color" id="strokeColor" class="input" value="#7c3aed" />
-          </div>
-        </div>
-
-        <label class="label">شفافية التعبئة</label>
-        <input type="range" id="fillOpacity" min="0" max="1" step="0.01" value="0.25" />
-
-        <label class="label">نصف القطر (م)</label>
-        <input id="radius" class="input" type="number" min="1" value="15" />
-
-        <div class="grid-2">
-          <label class="row"><input type="checkbox" id="dragToggle" /> سحب الدائرة</label>
-          <label class="row"><input type="checkbox" id="editToggle" /> تغيير الحجم</label>
-        </div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- Overlay أخطاء تحميل الخرائط -->
-  <div id="gmap-error" hidden>
-    <div class="box">
-      <h2>تعذّر تحميل خرائط Google</h2>
-      <p>
-        افحص: API Key، قيود Referrer، تفعيل <strong>Maps JavaScript API</strong>، الفوترة.
-      </p>
-      <pre id="err-details"></pre>
-    </div>
-  </div>
-
-  <!-- سكربت التطبيق -->
-  <script src="js/main.js" defer></script>
+    // التقط فشل التوثيق/المفتاح (إن وُجد)
+    window.gm_authFailure = function () {
+      console.error('فشل التوثيق مع Google Maps API: تحقّق من المفتاح أو قيود المراجع.');
+    };
+  </script>
 </body>
 </html>
