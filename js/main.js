@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v7.1 (mobile FAB share + sticky toolbar) */
+/* Diriyah Security Map – v8 (short share token + mobile-safe + glass card) */
 'use strict';
 
 /* ---------- Safe init guard ---------- */
@@ -13,12 +13,13 @@ let cardPinned=false, editMode=false, shareMode=false, hideTimer=null;
 let btnRoadmap, btnSatellite, btnTraffic, btnEditMode, btnShare, modeBadge, toast, fabShare;
 
 const DEFAULT_CENTER = { lat:24.7399, lng:46.5731 };
-const DEFAULT_RADIUS = 20;
-const DEFAULT_COLOR  = '#ff0000';
-const DEFAULT_FILL_OPACITY = 0.18;
-const DEFAULT_STROKE_WEIGHT = 1;
+const DEFAULT_RADIUS = 20;        // افتراضي 20م
+const DEFAULT_COLOR  = '#ff0000'; // أحمر
+const DEFAULT_FILL_OPACITY = 0.40; // شفافية متوسطة
+const DEFAULT_STROKE_WEIGHT = 2;
 const CIRCLE_Z = 9999;
 
+/* ---------- Locations ---------- */
 const LOCATIONS = [
   { id:0,  name:"بوابة سمحان",                          lat:24.742132284177778, lng:46.569503913805825 },
   { id:1,  name:"منطقة سمحان",                          lat:24.74091335108621,  lng:46.571891407130025 },
@@ -44,53 +45,67 @@ const LOCATIONS = [
 const circles = [];
 
 /* ---------- Base64URL (بدون + / =) ---------- */
-function b64uEncode(str){
-  const b = btoa(unescape(encodeURIComponent(str)));
+function b64uEncode(s){
+  const b = btoa(unescape(encodeURIComponent(s)));
   return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 function b64uDecode(tok){
   try{
-    tok = tok.replace(/[^A-Za-z0-9\-_]/g,'');
+    tok = String(tok||'').replace(/[^A-Za-z0-9\-_]/g,'');
     const pad = tok.length % 4 ? '='.repeat(4 - (tok.length % 4)) : '';
     const s = tok.replace(/-/g,'+').replace(/_/g,'/') + pad;
     return decodeURIComponent(escape(atob(s)));
   }catch{ return ''; }
 }
 
-/* ---------- Share token (#x=...) ---------- */
+/* ---------- قراءة/كتابة توكِن المشاركة (#x=...) ---------- */
 function readShare(){
   const h = (location.hash||'').trim();
   if(!/^#x=/.test(h)) return null;
-  const token = h.slice(3);
-  const json = b64uDecode(token);
-  if(!json) return null;
-  try{ return JSON.parse(json); }catch{ return null; }
+  try{ return JSON.parse(b64uDecode(h.slice(3))); }catch{ return null; }
 }
 function writeShare(state){
   if(shareMode) return;
-  const token = b64uEncode(JSON.stringify(state));
-  const h = `#x=${token}`;
-  if(location.hash !== h) history.replaceState(null,'',h);
+  const MAX_TOKEN = 1500; // حد آمن للتطبيقات/واتساب
+  let slim = JSON.stringify(state);
+  let tok  = b64uEncode(slim);
+  if(tok.length > MAX_TOKEN){
+    const s2 = { c: state.c, t: state.t|0 }; // إبقاء الدوائر والمرور فقط
+    slim = JSON.stringify(s2);
+    tok  = b64uEncode(slim);
+  }
+  if(location.hash !== `#x=${tok}`){
+    history.replaceState(null,'',`#x=${tok}`);
+  }
 }
 
-/* ---------- Build/Apply state (delta only) ---------- */
+/* ---------- تجميع/تطبيق الحالة (دلتا فقط وبضغط أعلى) ---------- */
+/*
+  p:[lng,lat]  (4 منازل)
+  z: zoom, m:'r'|'h', t: 0|1
+  c: [[id, r, sc, fo, sw, rec]]
+      sc: لون بدون # ، fo: شفافية ×100 (صحيح)، rec: أسماء مفصولة ~
+*/
 function buildState(){
   const ctr=map.getCenter(), z=map.getZoom();
-  const m=map.getMapTypeId()==='roadmap'?'r':'h';
-  const t=document.getElementById('btnTraffic').getAttribute('aria-pressed')==='true'?1:0;
+  const m = map.getMapTypeId()==='roadmap'?'r':'h';
+  const t = btnTraffic.getAttribute('aria-pressed')==='true'?1:0;
 
   const c=[];
   circles.forEach(({id, circle, meta})=>{
-    const r = Math.round(circle.getRadius());
+    const r  = Math.round(circle.getRadius());
     const sc = (circle.get('strokeColor')||DEFAULT_COLOR).replace('#','');
-    const fo = Number((circle.get('fillOpacity')??DEFAULT_FILL_OPACITY).toFixed(2));
+    const fo = Math.round((circle.get('fillOpacity')??DEFAULT_FILL_OPACITY)*100);
     const sw = (circle.get('strokeWeight')??DEFAULT_STROKE_WEIGHT)|0;
-    const rec = (meta.recipients||[]).join('|');
-    const changed = (r!==DEFAULT_RADIUS) ||
-                    (toHex('#'+sc)!==toHex(DEFAULT_COLOR)) ||
-                    (fo!==DEFAULT_FILL_OPACITY) ||
-                    (sw!==DEFAULT_STROKE_WEIGHT) ||
-                    rec.length>0;
+    const rec = (meta.recipients||[]).map(s=>s.trim()).filter(Boolean).join('~');
+
+    const changed =
+      (r!==DEFAULT_RADIUS) ||
+      (toHex('#'+sc)!==toHex(DEFAULT_COLOR)) ||
+      (fo!==Math.round(DEFAULT_FILL_OPACITY*100)) ||
+      (sw!==DEFAULT_STROKE_WEIGHT) ||
+      rec.length>0;
+
     if(changed){ c.push([id,r,sc,fo,sw,rec]); }
   });
 
@@ -102,12 +117,9 @@ function applyState(s){
   if(Number.isFinite(s.z)) map.setZoom(s.z);
   map.setMapTypeId(s.m==='r'?'roadmap':'hybrid');
 
-  const btnRoadmap  = document.getElementById('btnRoadmap');
-  const btnSatellite= document.getElementById('btnSatellite');
-  const btnTraffic  = document.getElementById('btnTraffic');
-
   btnRoadmap.setAttribute('aria-pressed', String(s.m==='r'));
   btnSatellite.setAttribute('aria-pressed', String(s.m!=='r'));
+
   if(s.t){ trafficLayer.setMap(map); btnTraffic.setAttribute('aria-pressed','true'); }
   else   { trafficLayer.setMap(null); btnTraffic.setAttribute('aria-pressed','false'); }
 
@@ -118,10 +130,10 @@ function applyState(s){
         radius: Number.isFinite(r)?r:DEFAULT_RADIUS,
         strokeColor: sc?`#${sc}`:DEFAULT_COLOR,
         fillColor: sc?`#${sc}`:DEFAULT_COLOR,
-        fillOpacity: Number.isFinite(fo)?fo:DEFAULT_FILL_OPACITY,
+        fillOpacity: Number.isFinite(fo)?(fo/100):DEFAULT_FILL_OPACITY,
         strokeWeight: Number.isFinite(sw)?sw:DEFAULT_STROKE_WEIGHT,
       });
-      it.meta.recipients = typeof rec==='string' && rec.length ? rec.split('|').map(s=>s.trim()).filter(Boolean) : [];
+      it.meta.recipients = typeof rec==='string' && rec.length ? rec.split('~').map(s=>s.trim()).filter(Boolean) : [];
     });
   }
 }
@@ -152,11 +164,14 @@ function boot(){
   btnShare.onclick = copyShareLink;
   fabShare.onclick = copyShareLink;
 
+  /* أنشئ الدوائر أولاً */
   LOCATIONS.forEach(addCircle);
 
+  /* ثم طبّق حالة المشاركة مباشرة لو وُجدت */
   const S = readShare();
   shareMode = !!S;
-  if(S){ applyState(S); setViewOnly(); } else { writeShare(buildState()); }
+  if(S){ applyState(S); setViewOnly(); }
+  else { writeShare(buildState()); }
 
   btnEditMode.onclick  = ()=>{ if(shareMode) return; editMode=!editMode; modeBadge.textContent=editMode?'Edit':'Share'; modeBadge.className='badge '+(editMode?'badge-edit':'badge-share'); cardPinned=false; if(infoWin) infoWin.close(); updateFab(); };
 
@@ -230,7 +245,6 @@ function renderCard(item){
   const stroke = c.get('strokeWeight') || DEFAULT_STROKE_WEIGHT;
   const fillO  = Number(c.get('fillOpacity') ?? DEFAULT_FILL_OPACITY);
 
-  // زر مشاركة صغير داخل الكرت في وضع التحرير
   const inlineShareBtn = (!shareMode && editMode)
     ? `<button id="btn-card-share" style="margin-inline-start:auto; border:1px solid #ddd; background:#fff; border-radius:10px; padding:4px 8px; cursor:pointer;">نسخ الرابط</button>`
     : ``;
@@ -282,7 +296,6 @@ function attachCardEvents(item){
   if(shareMode || !editMode) return;
   const c=item.circle;
 
-  // زر مشاركة داخل الكرت
   const insideShare = document.getElementById('btn-card-share');
   if(insideShare){ insideShare.addEventListener('click', copyShareLink); }
 
@@ -321,4 +334,3 @@ function toHex(col){ if(/^#/.test(col)) return col; const m=col.match(/rgba?\s*\
 function parseRecipients(text){ return String(text).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean); }
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function showToast(msg){ if(!toast) return; toast.textContent=msg; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'),1600); }
-
