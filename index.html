@@ -4,15 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Security Map – Share/Edit</title>
-
     <link rel="icon" href="/favicon.ico" />
     <link rel="stylesheet" href="css/style.css" />
-
-    <!-- Fallback ارتفاع للخريطة لو تعطل CSS الخارجي -->
     <style>
       #map{min-height:calc(100vh - 60px);}
       @media (max-width:640px){#map{min-height:calc(100vh - 56px);}}
-      /* إضافات بسيطة لقائمة التحرير */
       .gear-btn{background:#222;border:1px solid #333;color:#eee;padding:6px 8px;border-radius:10px;cursor:pointer}
       .edit-dropdown{position:absolute;top:10px;left:10px;background:#161616;border:1px solid #2a2a2a;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:10px;width:min(320px,92vw);display:none;z-index:11}
       .edit-dropdown.open{display:block}
@@ -33,7 +29,7 @@
           <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Diriyah_Company_Logo.svg/512px-Diriyah_Company_Logo.svg.png" alt="Diriyah" class="brand-logo" />
           <div class="brand-text">
             <strong>Security & Traffic Map</strong>
-            <span id="modeBadge" class="mode-badge">Share</span>
+            <span id="modeBadge" class="mode-badge badge-share">Share</span>
           </div>
         </div>
 
@@ -42,7 +38,6 @@
           <button id="btnSatellite" class="btn" aria-pressed="false">قمر صناعي</button>
           <button id="btnTraffic" class="btn" aria-pressed="false">حركة المرور</button>
           <button id="btnRecipients" class="btn secondary" title="تعديل المستلمين">المستلمون</button>
-          <!-- زر وضع التحرير (يختفي تلقائيًا في وضع المشاركة) -->
           <button id="btnEditMode" class="btn secondary" title="تفعيل/إلغاء وضع التحرير">تحرير</button>
         </div>
       </header>
@@ -57,7 +52,6 @@
             <h3 id="infoTitle">—</h3>
             <p id="infoSubtitle" class="muted">—</p>
           </div>
-          <!-- زر القائمة المنسدلة (يظهر فقط في وضع التحرير وعند تحديد دائرة) -->
           <button id="gearBtn" class="gear-btn" title="أدوات الدائرة">⚙️</button>
           <button id="pinCard" class="icon-btn" title="تثبيت الكرت">📌</button>
           <button id="closeCard" class="icon-btn" title="إغلاق">✕</button>
@@ -69,7 +63,7 @@
             <li id="infoNotesRow" class="hidden"><strong>ملاحظات:</strong> <span id="infoNotes">—</span></li>
           </ul>
 
-          <!-- القائمة المنسدلة للتحرير -->
+          <!-- قائمة التحرير -->
           <div id="editDropdown" class="edit-dropdown" aria-hidden="true">
             <div class="row">
               <label>اللون:</label>
@@ -112,7 +106,6 @@
       <div id="toast" class="toast hidden"></div>
     </div>
 
-    <!-- ترتيب التحميل (المهم) -->
     <script src="js/main.js" defer></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&libraries=geometry&callback=initMap" defer></script>
   </body>
