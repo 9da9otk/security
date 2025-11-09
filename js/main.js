@@ -113,6 +113,7 @@ window.initMap = function () {
   const params = getParams();
   const isShare = ((params.get('view')||'').toLowerCase() === 'share');
 
+  // قفل واجهة التحرير في وضع العرض
   if (isShare) {
     document.body.classList.add('share');
     document.getElementById('panel')?.remove();
@@ -120,10 +121,12 @@ window.initMap = function () {
     document.getElementById('edit-actions')?.remove();
   }
 
+  // الحالة
   let state = isShare
     ? (params.get('s') ? (decodeShareState(params.get('s')) || defaultState()) : defaultState())
     : (loadLocal() || defaultState());
 
+  // الخريطة
   const map = new google.maps.Map(document.getElementById('map'), {
     center: { lat: 24.7418, lng: 46.5758 }, zoom: 14, mapTypeId: 'roadmap',
     gestureHandling: 'greedy',
@@ -139,7 +142,7 @@ window.initMap = function () {
   setTraffic(trafficOn);
   trafficBtn?.addEventListener('click', () => setTraffic(!trafficOn));
 
-  // عناصر الكرت/المحرر
+  // عناصر الكرت
   const card = document.getElementById('info-card');
   const nameEl = document.getElementById('site-name');
   const typeEl = document.getElementById('site-type');
@@ -149,10 +152,12 @@ window.initMap = function () {
   const editActions = document.getElementById('edit-actions');
   card.querySelector('.close').addEventListener('click', () => { pinnedId=null; closeCard(); });
 
+  // مجموعات العناصر
   const markers = [];
   const circles = [];
   const byId = Object.create(null);
 
+  // حالة الكرت
   let selectedId = null, pinnedId = null, hoverId = null;
 
   function renderRecipients(list){ return (list && list.length) ? list.join('، ') : '—'; }
@@ -175,6 +180,7 @@ window.initMap = function () {
   }
   function closeCard(){ card.classList.add('hidden'); selectedId=null; hoverId=null; }
 
+  // لقطة لحظية للحالة الحالية
   function snapshotState(){
     const sites = Object.values(byId).map(s => ({
       id: s.id,
@@ -207,6 +213,7 @@ window.initMap = function () {
     if (selectedId === site.id){
       coordEl.textContent = `${toFixed6(site.lat)}, ${toFixed6(site.lng)}`;
       radiusEl.textContent = `${site.style.radius} م`;
+      recEl.textContent = renderRecipients(site.recipients);
     }
     if (!isShare) saveLocal(snapshotState());
   }
@@ -230,8 +237,10 @@ window.initMap = function () {
     });
     circle.__id = site.id; circles.push(circle);
 
-    function flash(){ circle.setOptions({ strokeOpacity:1, fillOpacity:Math.min(site.style.fillOpacity+0.06,1) });
-                      setTimeout(()=>circle.setOptions({ strokeOpacity:0.95, fillOpacity:site.style.fillOpacity }),240); }
+    function flash(){
+      circle.setOptions({ strokeOpacity:1, fillOpacity:Math.min(site.style.fillOpacity+0.06,1) });
+      setTimeout(()=>circle.setOptions({ strokeOpacity:0.95, fillOpacity:site.style.fillOpacity }),240);
+    }
     const pinOpen = () => { pinnedId = site.id; openCard(site); map.panTo(pos); flash(); };
     marker.addListener('click', pinOpen);
     circle.addListener('click', pinOpen);
@@ -246,6 +255,7 @@ window.initMap = function () {
     });
   }
 
+  // ====== إنشاء المواقع + حدود الخريطة (تعريف واحد فقط لـ bounds) ======
   const bounds = new google.maps.LatLngBounds();
   state.sites.forEach(s => { createFeature(s); bounds.extend({lat:s.lat, lng:s.lng}); });
   if (isShare && !bounds.isEmpty()) map.fitBounds(bounds, 60);
@@ -256,7 +266,7 @@ window.initMap = function () {
     const toggleCircles = document.getElementById('toggle-circles');
     const baseMapSel    = document.getElementById('basemap');
     const shareBtnEl    = document.getElementById('share-btn');
-    const toastEl       = document.getElementById('toast');   // ← اسم واحد فقط
+    const toastEl       = document.getElementById('toast');
     const previewBox    = document.getElementById('share-preview');
     const shareInput    = document.getElementById('share-url');
     const openBtn       = document.getElementById('open-url');
@@ -344,12 +354,8 @@ window.initMap = function () {
     });
   }
 
+  // إغلاق الكرت عند الضغط على الخريطة
   map.addListener('click', () => { pinnedId=null; closeCard(); });
-
-  // اضبط الإطار في وضع العرض
-  const bounds = new google.maps.LatLngBounds();
-  Object.values(state.sites || []).forEach(s => bounds.extend({lat:s.lat,lng:s.lng}));
-  if (isShare && !bounds.isEmpty()) map.fitBounds(bounds, 60);
 
   console.log(isShare ? 'Share View (locked)' : 'Editor View');
 };
