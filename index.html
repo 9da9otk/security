@@ -25,33 +25,46 @@
     }
     .btn[aria-pressed="true"]{ background:rgba(255,255,255,.22); }
     .badge{ font-size:12px; padding:2px 8px; border-radius:8px; border:1px solid rgba(255,255,255,.18); }
-    .badge-share{ background:rgba(255,255,255,.08); }
+    .badge-share{ background:rgba(255,255,255,0.08); }
     .badge-edit{ background:#1f5a1f; border-color:#2d7a2d; color:#d8ffd8; }
 
-    /* تحسين عرض الـ InfoWindow المخصص */
+    /* أخفِ زر إغلاق الـInfoWindow دائمًا */
+    .gm-style-iw button.gm-ui-hover-effect{ display:none !important; }
+
+    /* تحسين overflow داخل نافذة الخرائط */
     .gm-style-iw-d{ overflow:visible !important; }
-    .form-grid{
-      display:grid; grid-template-columns: 1fr 1fr; gap:8px;
-    }
+
+    /* شبكة تحسين للحقول داخل الكرت */
+    .form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
     .field{
-      background:#fff; border:1px solid #ddd; border-radius:10px; padding:6px 8px; display:flex; align-items:center; gap:8px;
+      background:#fff; border:1px solid #ddd; border-radius:10px;
+      padding:6px 8px; display:flex; align-items:center; gap:8px;
     }
     .field label{ font-size:12px; color:#333; white-space:nowrap; }
     .field input[type="color"]{ width:38px; height:28px; border:none; background:transparent; padding:0; }
     .note{ font-size:12px; color:#666; }
+
+    /* Toast */
+    .toast { position: fixed; right: 14px; bottom: 14px; z-index: 15; background: rgba(22,22,24,0.85);
+      color:#fff; border:1px solid rgba(255,255,255,.12); padding:8px 12px; border-radius:10px; backdrop-filter: blur(10px); }
+    .toast.hidden { display:none; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
   <!-- لوحة التحكم -->
-  <div class="toolbar">
+  <div class="toolbar" id="toolbar">
     <span id="modeBadge" class="badge badge-share">Share</span>
     <button id="btnRoadmap"  class="btn" aria-pressed="true">طرق</button>
     <button id="btnSatellite" class="btn" aria-pressed="false">قمر صناعي</button>
     <button id="btnTraffic"   class="btn" aria-pressed="false">حركة المرور</button>
+    <button id="btnShare"     class="btn">مشاركة</button>
     <button id="btnEditMode"  class="btn">تحرير</button>
   </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
 
   <script src="js/main.js" defer></script>
   <script async defer
