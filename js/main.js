@@ -13,10 +13,10 @@ let cardPinned=false, editMode=false, shareMode=false, hideTimer=null;
 let btnRoadmap, btnSatellite, btnTraffic, btnEditMode, btnShare, modeBadge, toast, fabShare;
 
 const DEFAULT_CENTER = { lat:24.7399, lng:46.5731 };
-const DEFAULT_RADIUS = 15;
-const DEFAULT_COLOR  = '#c1a476';
+const DEFAULT_RADIUS = 20;
+const DEFAULT_COLOR  = '#ff0000';
 const DEFAULT_FILL_OPACITY = 0.18;
-const DEFAULT_STROKE_WEIGHT = 2;
+const DEFAULT_STROKE_WEIGHT = 1;
 const CIRCLE_Z = 9999;
 
 const LOCATIONS = [
@@ -321,3 +321,4 @@ function toHex(col){ if(/^#/.test(col)) return col; const m=col.match(/rgba?\s*\
 function parseRecipients(text){ return String(text).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean); }
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function showToast(msg){ if(!toast) return; toast.textContent=msg; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'),1600); }
+
