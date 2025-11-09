@@ -1,5 +1,12 @@
-/* Diriyah Security Map – v6 (Mobile-proof Share + Glass Card + View-only on share) */
+/* Diriyah Security Map – v6.2 (Mobile-safe share + init guard + view-only on share) */
+'use strict';
 
+/* ---------- Safe init guard: يضمن تشغيل الخريطة حتى لو تأخر سكربت Google ---------- */
+window.__MAP_INITED__ = false;
+window.initMap = function initMapWrapper(){ if(window.__MAP_INITED__) return; window.__MAP_INITED__ = true; try{ realInit(); }catch(e){ console.error(e); } };
+(function waitForGoogle(){ if(window.google && google.maps){ if(!window.__MAP_INITED__) window.initMap(); } else { setTimeout(waitForGoogle, 200); } })();
+
+/* ---------- حالة عامة ---------- */
 let map, trafficLayer, infoWin=null;
 let cardPinned=false, editMode=false, shareMode=false, hideTimer=null;
 
@@ -37,76 +44,94 @@ const LOCATIONS = [
 
 const circles = []; // [{id, circle, meta:{name, recipients:[]}}]
 
-/* ========= LZ-String (subset) لروابط قصيرة وآمنة ========= */
+/* ---------- LZ-String الصغير (رابط قصير وآمن) ---------- */
 const LZ = (function(){
-  function u(e){return unescape(encodeURIComponent(e))}
-  function d(e){return decodeURIComponent(escape(e))}
-  const f="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
-  const keyStrUriSafe=f;
-  function getBaseValue(alphabet,c){return alphabet.indexOf(c)}
+  function _u(s){return unescape(encodeURIComponent(s))}
+  function _d(s){return decodeURIComponent(escape(s))}
+  const ABC="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+  function idx(c){return ABC.indexOf(c)}
   function compressToEncodedURIComponent(input){
     if(input==null) return "";
-    return _compress(input,6,function(a){return keyStrUriSafe.charAt(a)})+"~";
+    return _compress(input,6,(a)=>ABC.charAt(a))+"~";
   }
   function decompressFromEncodedURIComponent(input){
-    if(input==null) return "";
-    if(input.charAt(input.length-1)!=="~") return "";
+    if(!input || input.charAt(input.length-1)!=="~") return "";
     input=input.substring(0,input.length-1);
-    return _decompress(input.length,32,function(index){return getBaseValue(keyStrUriSafe,input.charAt(index))});
+    return _decompress(input.length,32,(i)=>idx(input.charAt(i)));
   }
-  function _compress(uncompressed, bitsPerChar, getCharFromInt){
+  function _compress(uncompressed,bitsPerChar,getCharFromInt){
     if(uncompressed==null) return "";
-    var i,value,context_dictionary={},context_dictionaryToCreate={},context_c,context_wc,context_w="",context_enlargeIn=2,context_dictSize=3,context_numBits=2,context_data=[],context_data_val=0,context_data_position=0;
-    for(i=0;i<uncompressed.length;i+=1){context_c=uncompressed.charAt(i);if(!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)){context_dictionary[context_c]=context_dictSize++;context_dictionaryToCreate[context_c]=true}
-      context_wc=context_w+context_c;if(Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)){context_w=context_wc}else{if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){if(context_w.charCodeAt(0)<256){for(i=0;i<context_numBits;i++)context_data_val=context_data_val<<1;if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ ;value=context_w.charCodeAt(0);for(i=0;i<8;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }}else{value=1;for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } value=context_w.charCodeAt(0);for(i=0;i<16;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }} context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} delete context_dictionaryToCreate[context_w]}else{value=context_dictionary[context_w];for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } } context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} context_dictionary[context_wc]=context_dictSize++; context_w=String(context_c)}
-    if(context_w!==""){ if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){ if(context_w.charCodeAt(0)<256){ for(i=0;i<context_numBits;i++)context_data_val=context_data_val<<1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=context_w.charCodeAt(0); for(i=0;i<8;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }} else { value=1; for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } value=context_w.charCodeAt(0); for(i=0;i<16;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 } } context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} } value=2; for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ }
-    while(true){context_data_val=context_data_val<<1; if(context_data_position==bitsPerChar-1){context_data.push(getCharFromInt(context_data_val));break}else context_data_position++}
-    return context_data.join("");
-  }
-  function _decompress(length, resetValue, getNextValue){
-    var dictionary=[], next, enlargeIn=4, dictSize=4, numBits=3, entry="", result=[], i, w, bits, resb, maxpower, power, c, data={val:getNextValue(0), position:resetValue, index:1};
-    for(i=0;i<3;i+=1) dictionary[i]=i;
-    bits=0; maxpower=Math.pow(2,2); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 }
-    switch(next=bits){
-      case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } c=String.fromCharCode(bits); break;
-      case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } c=String.fromCharCode(bits); break;
-      case 2: return "";
+    let i,value,dict={},dictToCreate={},c,w="",wc="",enlargeIn=2,dictSize=3,numBits=2,data=[],data_val=0,data_pos=0;
+    for(i=0;i<uncompressed.length;i++){
+      c=uncompressed.charAt(i);
+      if(dict[c]==null){dict[c]=dictSize++;dictToCreate[c]=true;}
+      wc=w+c;
+      if(dict[wc]!=null){w=wc;}else{
+        if(dictToCreate[w]){
+          if(w.charCodeAt(0)<256){for(i=0;i<numBits;i++) data_val<<=1;if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value=w.charCodeAt(0); for(i=0;i<8;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}}
+          else{value=1;for(i=0;i<numBits;i++){data_val=(data_val<<1)|1; if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++;} value=w.charCodeAt(0); for(i=0;i<16;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}}
+          enlargeIn--; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+          delete dictToCreate[w];
+        }else{
+          value=dict[w]; for(i=0;i<numBits;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}
+        }
+        enlargeIn--; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+        dict[wc]=dictSize++; w=String(c);
+      }
     }
+    if(w!==""){
+      if(dictToCreate[w]){
+        if(w.charCodeAt(0)<256){for(i=0;i<numBits;i++) data_val<<=1;if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value=w.charCodeAt(0); for(i=0;i<8;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}}
+        else{value=1;for(i=0;i<numBits;i++){data_val=(data_val<<1)|1; if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++;} value=w.charCodeAt(0); for(i=0;i<16;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}}
+        enlargeIn--; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+        delete dictToCreate[w];
+      }else{
+        value=dict[w]; for(i=0;i<numBits;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++; value>>=1;}
+      }
+      enlargeIn--; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits);numBits++;}
+    }
+    value=2; for(i=0;i<numBits;i++){data_val=(data_val<<1)|(value&1); if(data_pos==bitsPerChar-1){data_pos=0;data.push(getCharFromInt(data_val));data_val=0;}else data_pos++;}
+    while(true){ data_val<<=1; if(data_pos==bitsPerChar-1){ data.push(getCharFromInt(data_val)); break; } else data_pos++; }
+    return data.join('');
+  }
+  function _decompress(length,resetValue,getNextValue){
+    let dictionary=[],next,enlargeIn=4,dictSize=4,numBits=3,entry="",result=[],i,w,bits,resb,maxpower,power,c,data={val:getNextValue(0),position:resetValue,index:1};
+    for(i=0;i<3;i++) dictionary[i]=i;
+    bits=0; maxpower=Math.pow(2,2); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; }
+    switch(next=bits){ case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; } c=String.fromCharCode(bits); break;
+      case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; } c=String.fromCharCode(bits); break;
+      case 2: return ""; }
     dictionary[3]=c; w=c; result.push(c);
     while(true){
       if(data.index>length) return "";
-      bits=0; maxpower=Math.pow(2,numBits); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 }
+      bits=0; maxpower=Math.pow(2,numBits); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; }
       switch(c=next=bits){
-        case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
-        case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
-        case 2: return result.join("");
-      }
-      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++}
+        case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
+        case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1; } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
+        case 2: return result.join(""); }
+      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++;}
       if(dictionary[c]){ entry=dictionary[c]; }
       else{ if(c===dictSize){ entry=w+w.charAt(0); } else { return ""; } }
-      result.push(entry); dictionary[dictSize++]=w+entry.charAt(0); enlargeIn--; w=entry; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++}
+      result.push(entry); dictionary[dictSize++]=w+entry.charAt(0); enlargeIn--; w=entry;
+      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++;}
     }
   }
-  return { c:compressToEncodedURIComponent, d:decompressFromEncodedURIComponent };
+  return {c:compressToEncodedURIComponent, d:decompressFromEncodedURIComponent};
 })();
-/* ========================================================= */
 
-/* ===== Share helpers: token في #x=token(.ts) ===== */
-function readShareToken() {
-  const h = location.hash || "";
-  if (!h.startsWith("#x=")) return null;
-  // يدعم #x=token أو #x=token.ts
-  const raw = h.slice(3);
-  const token = raw.split(".")[0];
-  const json = LZ.d(token);
-  if (!json) return null;
-  try { return JSON.parse(json); } catch { return null; }
+/* ---------- مشاركة مختصرة: #x=token(.ts) ---------- */
+function readShareToken(){
+  const h=location.hash||"";
+  if(!h.startsWith("#x=")) return null;
+  const raw=h.slice(3); const token=raw.split(".")[0];
+  const json=LZ.d(token); if(!json) return null;
+  try{ return JSON.parse(json); }catch{ return null; }
 }
 function writeShareToken(state){
-  if (shareMode) return;
-  const token = LZ.c(JSON.stringify(state));
-  const h = `#x=${token}.${Date.now().toString(36).slice(-6)}`;
-  if (location.hash !== h) history.replaceState(null, "", h);
+  if(shareMode) return;
+  const token=LZ.c(JSON.stringify(state));
+  const h=`#x=${token}.${Date.now().toString(36).slice(-6)}`;
+  if(location.hash!==h) history.replaceState(null,"",h);
 }
 
 function buildState(){
@@ -147,8 +172,9 @@ function applyState(s){
 }
 let persistTimer=null; const persist=()=>{ if(shareMode) return; clearTimeout(persistTimer); persistTimer=setTimeout(()=>writeShareToken(buildState()),220); };
 
-/* ===== Init ===== */
-function initMap(){
+/* ---------- التهيئة الحقيقية ---------- */
+function realInit(){
+  // refs
   btnRoadmap  = document.getElementById('btnRoadmap');
   btnSatellite= document.getElementById('btnSatellite');
   btnTraffic  = document.getElementById('btnTraffic');
@@ -163,35 +189,39 @@ function initMap(){
   });
   trafficLayer = new google.maps.TrafficLayer();
 
+  // أزرار العرض
   btnRoadmap.onclick   = ()=>{ map.setMapTypeId('roadmap');  btnRoadmap.setAttribute('aria-pressed','true');  btnSatellite.setAttribute('aria-pressed','false'); persist(); };
   btnSatellite.onclick = ()=>{ map.setMapTypeId('hybrid');   btnSatellite.setAttribute('aria-pressed','true'); btnRoadmap.setAttribute('aria-pressed','false');  persist(); };
   btnTraffic.onclick   = ()=>{ const on=btnTraffic.getAttribute('aria-pressed')==='true'; if(on){trafficLayer.setMap(null);} else {trafficLayer.setMap(map);} btnTraffic.setAttribute('aria-pressed', String(!on)); persist(); };
 
-  btnEditMode.onclick  = ()=>{ if(shareMode) return; editMode=!editMode; modeBadge.textContent=editMode?'Edit':'Share'; modeBadge.className='badge '+(editMode?'badge-edit':'badge-share'); cardPinned=false; if(infoWin) infoWin.close(); };
+  // مشاركة
   btnShare.onclick     = copyShareLink;
 
-  // أنشئ الدوائر أولاً
+  // إنشاء الدوائر أولًا
   LOCATIONS.forEach(addCircle);
 
-  // اقرأ المشاركة (متوافق جوال) ثم طبّق وضع العرض
+  // إذا الرابط مشاركة: طبّق الحالة ثم عيّن وضع العرض فقط
   const S = readShareToken();
   shareMode = !!S;
   if(S){ applyState(S); setViewOnly(); }
   else { writeShareToken(buildState()); }
 
+  // تحرير (مُعطَّل تمامًا في وضع المشاركة)
+  btnEditMode.onclick  = ()=>{ if(shareMode) return; editMode=!editMode; modeBadge.textContent=editMode?'Edit':'Share'; modeBadge.className='badge '+(editMode?'badge-edit':'badge-share'); cardPinned=false; if(infoWin) infoWin.close(); };
+
+  // أحداث عامة
   map.addListener('idle', persist);
   map.addListener('click', ()=>{ cardPinned=false; if(infoWin) infoWin.close(); });
 }
-window.initMap = initMap;
 
 function setViewOnly(){
-  editMode = false;
+  editMode=false;
   modeBadge.textContent='Share';
   modeBadge.className='badge badge-share';
   if(btnEditMode){ btnEditMode.style.display='none'; btnEditMode.disabled=true; }
 }
 
-/* ===== Circles & Card ===== */
+/* ---------- الدوائر والكرت ---------- */
 function addCircle(loc){
   const circle = new google.maps.Circle({
     map, center:{lat:loc.lat,lng:loc.lng}, radius:DEFAULT_RADIUS,
@@ -216,8 +246,7 @@ function openCard(item){
   infoWin.setPosition(item.circle.getCenter());
   infoWin.open({ map });
 
-  // إزالة الـX والذيل افتراضيًا
-  setTimeout(()=>{
+  setTimeout(()=>{ // إزالة X والذيل
     const root = document.getElementById('iw-root');
     if(!root) return;
     const closeBtn = root.parentElement?.querySelector('.gm-ui-hover-effect');
@@ -234,17 +263,11 @@ function openCard(item){
 }
 
 function renderCard(item){
-  const c = item.circle, meta=item.meta;
+  const meta=item.meta;
   const names = Array.isArray(meta.recipients) ? meta.recipients : [];
   const namesHtml = names.length
     ? `<ol style="margin:6px 0 0 0;padding-inline-start:20px;">${names.map(n=>`<li>${escapeHtml(n)}</li>`).join('')}</ol>`
     : `<div class="note">لا توجد أسماء مضافة</div>`;
-
-  // قيم التحرير
-  const radius = Math.round(c.getRadius());
-  const color  = c.get('strokeColor') || DEFAULT_COLOR;
-  const stroke = c.get('strokeWeight') || DEFAULT_STROKE_WEIGHT;
-  const fillO  = Number(c.get('fillOpacity') ?? DEFAULT_FILL_OPACITY);
 
   return `
   <div id="iw-root" dir="rtl" style="min-width:360px; max-width:520px;">
@@ -271,29 +294,14 @@ function renderCard(item){
       <div style="margin-top:12px; border-top:1px dashed #e7e7e7; padding-top:10px;">
         <div style="font-weight:700; margin-bottom:6px;">أدوات الدائرة:</div>
         <div class="form-grid">
-          <div class="field">
-            <label>نصف القطر (م):</label>
-            <input id="ctl-radius" type="range" min="5" max="120" step="1" value="${radius}" style="width:100%;">
-            <span id="lbl-radius" class="note">${radius}</span>
-          </div>
-          <div class="field">
-            <label>اللون:</label>
-            <input id="ctl-color" type="color" value="${toHex(color)}">
-          </div>
-          <div class="field">
-            <label>حدّ الدائرة:</label>
-            <input id="ctl-stroke" type="number" min="1" max="8" step="1" value="${stroke}" style="width:70px;">
-          </div>
-          <div class="field">
-            <label>شفافية التعبئة:</label>
-            <input id="ctl-fill" type="range" min="0" max="0.8" step="0.02" value="${fillO}" style="width:100%;">
-            <span id="lbl-fill" class="note">${fillO.toFixed(2)}</span>
-          </div>
+          <div class="field"><label>نصف القطر (م):</label><input id="ctl-radius" type="range" min="5" max="120" step="1" style="width:100%;"><span id="lbl-radius" class="note"></span></div>
+          <div class="field"><label>اللون:</label><input id="ctl-color" type="color"></div>
+          <div class="field"><label>حدّ الدائرة:</label><input id="ctl-stroke" type="number" min="1" max="8" step="1" style="width:70px;"></div>
+          <div class="field"><label>شفافية التعبئة:</label><input id="ctl-fill" type="range" min="0" max="0.8" step="0.02" style="width:100%;"><span id="lbl-fill" class="note"></span></div>
         </div>
-
         <div style="margin-top:8px;">
           <label class="note">أسماء المستلمين (سطر لكل اسم):</label>
-          <textarea id="ctl-names" rows="4" style="width:100%; background:#fff; border:1px solid #ddd; border-radius:10px; padding:8px; white-space:pre;">${escapeHtml(names.join("\n"))}</textarea>
+          <textarea id="ctl-names" rows="4" style="width:100%; background:#fff; border:1px solid #ddd; border-radius:10px; padding:8px; white-space:pre;"></textarea>
           <div style="display:flex; gap:8px; margin-top:8px;">
             <button id="btn-save"  style="border:1px solid #ddd; background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer;">حفظ</button>
             <button id="btn-clear" style="border:1px solid #ddd; background:#fff; border-radius:10px; padding:6px 10px; cursor:pointer;">حذف الأسماء</button>
@@ -307,26 +315,35 @@ function renderCard(item){
 function attachCardEvents(item){
   if(shareMode || !editMode) return;
   const c=item.circle;
-  const r = document.getElementById('ctl-radius');
-  const lr= document.getElementById('lbl-radius');
-  const col=document.getElementById('ctl-color');
-  const sw =document.getElementById('ctl-stroke');
-  const fo =document.getElementById('ctl-fill');
-  const lf =document.getElementById('lbl-fill');
+
+  const r  = document.getElementById('ctl-radius');
+  const lr = document.getElementById('lbl-radius');
+  const col= document.getElementById('ctl-color');
+  const sw = document.getElementById('ctl-stroke');
+  const fo = document.getElementById('ctl-fill');
+  const lf = document.getElementById('lbl-fill');
   const names=document.getElementById('ctl-names');
-  const save=document.getElementById('btn-save');
-  const clr =document.getElementById('btn-clear');
+  const save =document.getElementById('btn-save');
+  const clr  =document.getElementById('btn-clear');
 
-  r?.addEventListener('input', ()=>{ const v=+r.value||DEFAULT_RADIUS; lr.textContent=v; c.setRadius(v); persist(); });
-  col?.addEventListener('input', ()=>{ const v=col.value||DEFAULT_COLOR; c.setOptions({strokeColor:v, fillColor:v}); persist(); });
-  sw?.addEventListener('input', ()=>{ const v=clamp(+sw.value,1,8); sw.value=v; c.setOptions({strokeWeight:v}); persist(); });
-  fo?.addEventListener('input', ()=>{ const v=clamp(+fo.value,0,0.8); lf.textContent=v.toFixed(2); c.setOptions({fillOpacity:v}); persist(); });
+  // تعبئة القيم الحالية
+  r.value = Math.round(c.getRadius()); lr.textContent = r.value;
+  col.value = toHex(c.get('strokeColor') || DEFAULT_COLOR);
+  sw.value = c.get('strokeWeight') || DEFAULT_STROKE_WEIGHT;
+  fo.value = Number(c.get('fillOpacity') ?? DEFAULT_FILL_OPACITY); lf.textContent = (+fo.value).toFixed(2);
+  names.value = (item.meta.recipients||[]).join("\n");
 
-  save?.addEventListener('click', ()=>{ item.meta.recipients = parseRecipients(names.value); openCard(item); persist(); });
-  clr?.addEventListener('click',  ()=>{ item.meta.recipients = []; openCard(item); persist(); });
+  // ربط الأحداث
+  r.addEventListener('input', ()=>{ const v=+r.value||DEFAULT_RADIUS; lr.textContent=v; c.setRadius(v); persist(); });
+  col.addEventListener('input', ()=>{ const v=col.value||DEFAULT_COLOR; c.setOptions({strokeColor:v, fillColor:v}); persist(); });
+  sw.addEventListener('input', ()=>{ const v=clamp(+sw.value,1,8); sw.value=v; c.setOptions({strokeWeight:v}); persist(); });
+  fo.addEventListener('input', ()=>{ const v=clamp(+fo.value,0,0.8); lf.textContent=v.toFixed(2); c.setOptions({fillOpacity:v}); persist(); });
+
+  save.addEventListener('click', ()=>{ item.meta.recipients = parseRecipients(names.value); openCard(item); persist(); });
+  clr.addEventListener('click',  ()=>{ item.meta.recipients = []; openCard(item); persist(); });
 }
 
-/* ===== Share button ===== */
+/* ---------- مشاركة ---------- */
 async function copyShareLink(){
   writeShareToken(buildState());
   try{ await navigator.clipboard.writeText(location.href); showToast('تم نسخ رابط المشاركة ✅'); }
@@ -336,7 +353,7 @@ async function copyShareLink(){
   }
 }
 
-/* ===== Helpers ===== */
+/* ---------- Helpers ---------- */
 function clamp(x,min,max){ return Math.min(max, Math.max(min, x)); }
 function toHex(col){ if(/^#/.test(col)) return col; const m=col.match(/rgba?\s*\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i); if(!m) return DEFAULT_COLOR; const [r,g,b]=[+m[1],+m[2],+m[3]]; return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''); }
 function parseRecipients(text){ return String(text).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean); }
