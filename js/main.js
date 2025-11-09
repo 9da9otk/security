@@ -1,5 +1,5 @@
 /* =======================
-   خريطة الأمن – main.js (stable)
+   خريطة الأمن – main.js (share via hash #x=..., mobile-friendly)
    ======================= */
 
 /* ---------- Helpers ---------- */
@@ -252,8 +252,12 @@ function saveLocal(v){ try{localStorage.setItem(LS_KEY,JSON.stringify(v));}catch
 
 /* =====================  التطبيق  ===================== */
 window.initMap = function () {
+  // 1) نجمع استعلام وهاش
   var sp = qs();
-  var isShare = (String(sp.get('view')||'').toLowerCase()==='share') || !!sp.get('x') || !!sp.get('s');
+  var hp = new URLSearchParams(String(location.hash||'').replace(/^#/, ''));
+  var hashX = hp.get('x'); // المشاركة عبر الهاش
+  var isShare = (String(sp.get('view')||'').toLowerCase()==='share') || !!sp.get('x') || !!hashX || !!sp.get('s');
+
   if (isShare){
     var p=document.getElementById('panel'); if(p) p.remove();
     var ed=document.getElementById('editor'); if(ed) ed.remove();
@@ -261,14 +265,17 @@ window.initMap = function () {
     document.body.classList.add('share');
   }
 
+  // 2) نحمل الحالة
   var state = defaultState();
   if (isShare){
-    if (sp.get('x')) state = decC4(sp.get('x')) || decC3(sp.get('x')) || state;
+    if (hashX)       state = decC4(hashX) || decC3(hashX) || state;
+    else if (sp.get('x')) state = decC4(sp.get('x')) || decC3(sp.get('x')) || state;
     else if (sp.get('s')) state = decC3(sp.get('s')) || decC2(sp.get('s')) || state;
   } else {
     state = loadLocal() || state;
   }
 
+  // 3) إنشاء الخريطة
   var map = new google.maps.Map(document.getElementById('map'), {
     center:{lat:24.7418,lng:46.5758}, zoom:14, mapTypeId:'roadmap',
     gestureHandling:'greedy', disableDefaultUI:false, mapTypeControl:true, zoomControl:true,
@@ -295,13 +302,13 @@ window.initMap = function () {
   if(closeBtn) closeBtn.addEventListener('click',function(){ pinnedId=null; closeCard(); });
 
   // عناصر تحرير المستلمين
-  var editBtn      = document.getElementById('edit-recipients'); // زر "تعديل المستلمين"
-  var editorBox    = document.getElementById('editor');          // صندوق التحرير
-  var editorInput  = document.getElementById('editor-input');    // textarea
-  var editorClose  = document.getElementById('editor-close');    // زر إغلاق
-  var editorSave   = document.getElementById('editor-save');     // زر حفظ
-  var editorCancel = document.getElementById('editor-cancel');   // زر إلغاء
-  var editorOriginal = [];                                       // لحفظ النسخة قبل التحرير
+  var editBtn      = document.getElementById('edit-recipients');
+  var editorBox    = document.getElementById('editor');
+  var editorInput  = document.getElementById('editor-input');
+  var editorClose  = document.getElementById('editor-close');
+  var editorSave   = document.getElementById('editor-save');
+  var editorCancel = document.getElementById('editor-cancel');
+  var editorOriginal = [];
 
   var markers=[], circles=[], byId={};
   var selectedId=null, pinnedId=null, hoverId=null;
@@ -330,7 +337,7 @@ window.initMap = function () {
 
   function openEditor(s){
     if(!editorBox) return;
-    editorOriginal = (s.recipients || []).slice();           // حفظ النسخة الأصلية
+    editorOriginal = (s.recipients || []).slice();
     editorBox.classList.remove('hidden');
     if(editorInput){
       editorInput.value = editorOriginal.join('\n');
@@ -339,34 +346,24 @@ window.initMap = function () {
   }
   function closeEditor(){ if(editorBox) editorBox.classList.add('hidden'); }
 
-  if(editBtn){
-    editBtn.addEventListener('click',function(){
-      if(isShare) return;            // في وضع العرض لا تحرير
-      if(!selectedId) return;
-      var s=byId[selectedId]; if(s) openEditor(s);
-    });
-  }
+  if(editBtn){ editBtn.addEventListener('click',function(){ if(isShare||!selectedId) return; var s=byId[selectedId]; if(s) openEditor(s); }); }
   if(editorClose)  editorClose.addEventListener('click',function(){ closeEditor(); });
   if(editorCancel) editorCancel.addEventListener('click',function(){
-    if(!selectedId) return;
-    var s=byId[selectedId]; if(!s) return;
-    s.recipients = editorOriginal.slice();                   // استرجاع الأصل
+    if(!selectedId) return; var s=byId[selectedId]; if(!s) return;
+    s.recipients = editorOriginal.slice();
     if(editorInput) editorInput.value = editorOriginal.join('\n');
     if(recEl) recEl.textContent = renderRecipients(s.recipients);
     saveLocal(snapshotFromMap());
     closeEditor();
   });
   if(editorSave) editorSave.addEventListener('click',function(){
-    if(!selectedId) return;
-    var s=byId[selectedId]; if(!s) return;
+    if(!selectedId) return; var s=byId[selectedId]; if(!s) return;
     var txt = editorInput ? String(editorInput.value||'') : '';
     s.recipients = txt.split('\n').map(function(x){return x.trim();}).filter(Boolean);
     if(recEl) recEl.textContent = renderRecipients(s.recipients);
     saveLocal(snapshotFromMap());
     closeEditor();
   });
-
-  // تحديث أثناء الكتابة (اختياري: يظل موجودًا)
   if(editorInput) editorInput.addEventListener('input',function(){
     if(!selectedId) return; var ss=byId[selectedId];
     ss.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
@@ -422,7 +419,7 @@ window.initMap = function () {
       strokeColor:s.style.stroke, strokeOpacity:0.95, strokeWeight:s.style.strokeWeight,
       fillColor:s.style.fill,  fillOpacity:s.style.fillOpacity,
       clickable:true, cursor:'pointer', zIndex:1,
-      editable:false                      // ⚠️ لا مقابض تكبير/تصغير – التغيير من الإعدادات فقط
+      editable:false   // لا مقابض؛ التغيير من الإعدادات فقط
     });
     circle.__id=s.id; circles.push(circle);
 
@@ -497,24 +494,24 @@ window.initMap = function () {
       });
     });
 
-    // مشاركة قصيرة c4 + منع الكاش للجوال
+    // مشاركة قصيرة عبر الهاش #x=
     async function doShare(){
       if(selectedId && editorInput){
         var ss=byId[selectedId];
         ss.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
       }
       var x = encC4(snapshotFromMap());
-      var url = location.origin+location.pathname+'?view=share&x='+x+'&t='+(Date.now());
+      var url = location.origin + location.pathname + '#x=' + x + '&t=' + Date.now();
       if(previewBox) previewBox.classList.remove('hidden');
       if(shareInput) shareInput.value=url;
       var copied=false; try{ await navigator.clipboard.writeText(url); copied=true; }catch(e){}
       if(!copied && shareInput){ shareInput.focus(); shareInput.select(); }
-      if(toastEl){ toastEl.textContent='تم النسخ ✅ (افتح من المتصفح)'; toastEl.classList.remove('hidden'); setTimeout(function(){ toastEl.classList.add('hidden'); },2000); }
+      if(toastEl){ toastEl.textContent='تم النسخ ✅ (افتح في المتصفح)'; toastEl.classList.remove('hidden'); setTimeout(function(){ toastEl.classList.add('hidden'); },2000); }
     }
     if(shareBtn) shareBtn.addEventListener('click',doShare);
     if(openBtn) openBtn.addEventListener('click',function(){ if(shareInput&&shareInput.value) window.open(shareInput.value,'_blank'); });
   }
 
   map.addListener('click',function(){ pinnedId=null; closeCard(); });
-  console.log(isShare ? 'Share View (locked / c4)' : 'Editor View');
+  console.log(isShare ? 'Share View (locked / hash)' : 'Editor View');
 };
