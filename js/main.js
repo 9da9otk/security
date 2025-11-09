@@ -1,44 +1,29 @@
 /*
-  Security Map – Share Mode (v2)
-  - رابط مشاركة قصير #s=TOKEN&t=.. يحمل كل الإعدادات ويعمل على الجوال
-  - TOKEN هو Base64 URL-safe لـ JSON صغير (map type/traffic/recipients/circles/center/zoom)
-  - منع سباق التحميل: تعريف window.initMap قبل نداء Google
+  Security Map – Share Mode (v2.1)
+  - إصلاح عدم ظهور الخريطة بعد التعديل: ترتيب تحميل مؤكد + حراسة للأخطاء
+  - رابط مشاركة قصير #s=TOKEN&t=.. يحمل كل الإعدادات (map type/traffic/recipients/circles/center/zoom)
+  - robust guards: try/catch، فحص عناصر DOM، fallback آمن عند فشل token
 */
 
 let map, trafficLayer;
 let cardPinned = false;
+let circles = [];
+let _persistTimer = null;
 
-// عناصر الواجهة
-const btnRoadmap = document.getElementById('btnRoadmap');
-const btnSatellite = document.getElementById('btnSatellite');
-const btnTraffic  = document.getElementById('btnTraffic');
-const btnRecipients = document.getElementById('btnRecipients');
+// ===== عناصر الواجهة (نتأكد لاحقًا داخل initMap) =====
+let btnRoadmap, btnSatellite, btnTraffic, btnRecipients;
+let infoCard, infoTitle, infoSubtitle, infoLatLng, infoRadius, infoNotesRow, infoNotes, pinCard, closeCard;
+let recipientsModal, recipientsInput, saveRecipients, cancelRecipients;
+let toast;
 
-const infoCard = document.getElementById('infoCard');
-const infoTitle = document.getElementById('infoTitle');
-const infoSubtitle = document.getElementById('infoSubtitle');
-const infoLatLng = document.getElementById('infoLatLng');
-const infoRadius = document.getElementById('infoRadius');
-const infoNotesRow = document.getElementById('infoNotesRow');
-const infoNotes = document.getElementById('infoNotes');
-const pinCard = document.getElementById('pinCard');
-const closeCard = document.getElementById('closeCard');
-
-const recipientsModal = document.getElementById('recipientsModal');
-const recipientsInput = document.getElementById('recipientsInput');
-const saveRecipients = document.getElementById('saveRecipients');
-const cancelRecipients = document.getElementById('cancelRecipients');
-
-const toast = document.getElementById('toast');
-
-// إعدادات عامة
+// ===== إعدادات عامة =====
 const DEFAULT_ZOOM = 16;
 const DEFAULT_CENTER = { lat: 24.7399, lng: 46.5731 }; // Diriyah
-const DEFAULT_RADIUS = 15; // meters
+const DEFAULT_RADIUS = 15; // m
 const DEFAULT_COLOR = '#c1a476';
 const DEFAULT_FILL_OPACITY = 0.15;
 
-// مواقع افتراضية (أكمل قائمتك هنا)
+// ===== مواقع افتراضية (أكمل قائمتك) =====
 const LOCATIONS = [
   { id: 0, name: "Samhan Gate", lat: 24.742132355539432, lng: 46.56966664740594, notes: "بوابة سَمْحان" },
   { id: 1, name: "Al-Bujairi Roundabout", lat: 24.73754835059363, lng: 46.57401116325427, notes: "دوار البجيري" },
@@ -46,14 +31,14 @@ const LOCATIONS = [
   { id: 3, name: "AlMozah Roundabout", lat: 24.743980167228152, lng: 46.56606089138615, notes: "دوار الموزة" },
 ];
 
-const circles = []; // [{id, circle, meta}...]
-
-// ================= مشاركة: ترميز/فك ترميز حالة مختصرة =================
+// ================= مشاركة: ترميز/فك ترميز =================
 function encodeState(obj){
-  const json = JSON.stringify(obj);
-  const b64 = btoa(unescape(encodeURIComponent(json)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  return b64;
+  try{
+    const json = JSON.stringify(obj);
+    const b64 = btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return b64;
+  }catch{ return ""; }
 }
 function decodeState(token){
   try{
@@ -63,32 +48,39 @@ function decodeState(token){
   }catch{ return null; }
 }
 function writeShareToken(state){
-  const token = encodeState(state);
-  const t = Date.now().toString(36).slice(-6); // كاسر كاش قصير
-  const hash = `#s=${token}&t=${t}`;
-  if (location.hash !== hash) history.replaceState(null, '', hash);
+  try{
+    const token = encodeState(state);
+    const t = Date.now().toString(36).slice(-6); // كاسر كاش
+    const hash = `#s=${token}&t=${t}`;
+    if (location.hash !== hash) history.replaceState(null, '', hash);
+  }catch(e){ /* ignore */ }
 }
 function readShareToken(){
-  if (!location.hash) return null;
-  const q = new URLSearchParams(location.hash.slice(1));
-  const s = q.get('s');
-  if (!s) return null;
-  return decodeState(s);
+  try{
+    if (!location.hash) return null;
+    const q = new URLSearchParams(location.hash.slice(1));
+    const s = q.get('s');
+    if (!s) return null;
+    const obj = decodeState(s);
+    return obj && typeof obj === 'object' ? obj : null;
+  }catch{ return null; }
 }
 
 // يبني الحالة الحالية من الخريطة والواجهة
 function buildShareState(){
+  if (!map) return {};
   // نوع الخريطة
-  const type = map.getMapTypeId() === 'roadmap' ? 'r' : 'h';
+  const type = (map.getMapTypeId && map.getMapTypeId() === 'roadmap') ? 'r' : 'h';
   // المرور
-  const trafficOn = (btnTraffic.getAttribute('aria-pressed') === 'true') ? 1 : 0;
+  const trafficOn = (btnTraffic && btnTraffic.getAttribute('aria-pressed') === 'true') ? 1 : 0;
   // المستلمين
-  const recipients = recipientsInput.value.trim();
-  // الدوائر (id, radius, stroke hex, fillOpacity)
+  const recipients = recipientsInput ? (recipientsInput.value.trim()) : "";
+  // الدوائر
   const c = circles.map(({id, circle}) => {
     const r  = Math.round(circle.getRadius());
-    const sc = (circle.strokeColor || DEFAULT_COLOR).replace('#','');
-    const fo = Number((circle.fillOpacity ?? DEFAULT_FILL_OPACITY).toFixed(2));
+    // Google Circle لا يعرّض خصائص مباشرة، لذلك نقرأ من options الحالية إن وجدت
+    const sc = (circle.get('strokeColor') || DEFAULT_COLOR).replace('#','');
+    const fo = Number((circle.get('fillOpacity') ?? DEFAULT_FILL_OPACITY).toFixed(2));
     return [id, r, sc, fo];
   });
   // موضع الخريطة
@@ -100,49 +92,43 @@ function buildShareState(){
   return { m: type, tr: trafficOn, rcp: recipients, c, cx, cy, z };
 }
 
-// يطبّق حالة المشاركة على الخريطة والواجهة
+// يطبّق حالة المشاركة
 function applyShareState(s){
-  if (!s) return;
-  // موضع الخريطة إن وُجد
-  if (Number.isFinite(s.cx) && Number.isFinite(s.cy)) {
-    map.setCenter({ lat: s.cy, lng: s.cx });
-  }
-  if (Number.isFinite(s.z)) map.setZoom(s.z);
+  try{
+    if (!s) return;
 
-  // نوع الخريطة
-  setMapType(s.m === 'r' ? 'roadmap' : 'hybrid', /*silent*/true);
+    if (Number.isFinite(s.cy) && Number.isFinite(s.cx)) {
+      map.setCenter({ lat: s.cy, lng: s.cx });
+    }
+    if (Number.isFinite(s.z)) map.setZoom(s.z);
 
-  // المرور
-  if (s.tr) {
-    trafficLayer.setMap(map);
-    btnTraffic.setAttribute('aria-pressed','true');
-  } else {
-    trafficLayer.setMap(null);
-    btnTraffic.setAttribute('aria-pressed','false');
-  }
+    setMapType(s.m === 'r' ? 'roadmap' : 'hybrid', /*silent*/true);
 
-  // المستلمين
-  if (typeof s.rcp === 'string') {
-    recipientsInput.value = s.rcp;
-    localStorage.setItem('recipients', s.rcp);
-  }
+    if (s.tr) { trafficLayer.setMap(map); btnTraffic.setAttribute('aria-pressed','true'); }
+    else      { trafficLayer.setMap(null); btnTraffic.setAttribute('aria-pressed','false'); }
 
-  // الدوائر
-  if (Array.isArray(s.c)) {
-    s.c.forEach(([id, r, sc, fo]) => {
-      const item = circles.find(x => x.id === id);
-      if (item) {
-        if (Number.isFinite(r)) item.circle.setRadius(r);
-        if (sc) item.circle.setOptions({ strokeColor: `#${sc}`, fillColor: `#${sc}` });
-        if (Number.isFinite(fo)) item.circle.setOptions({ fillOpacity: fo });
-      }
-    });
-  }
+    if (typeof s.rcp === 'string') {
+      recipientsInput.value = s.rcp;
+      localStorage.setItem('recipients', s.rcp);
+    }
+
+    if (Array.isArray(s.c)) {
+      s.c.forEach(([id, r, sc, fo]) => {
+        const item = circles.find(x => x.id === id);
+        if (item) {
+          if (Number.isFinite(r)) item.circle.setRadius(r);
+          if (sc) item.circle.setOptions({ strokeColor: `#${sc}`, fillColor: `#${sc}` });
+          if (Number.isFinite(fo)) item.circle.setOptions({ fillOpacity: fo });
+        }
+      });
+    }
+  }catch(e){ console.warn('applyShareState error', e); }
 }
 
-// حفظ/كتابة الرابط بعد أي تغيير مهم
-function persistShare(){
-  writeShareToken(buildShareState());
+// حفظ مؤجل (يمنع الكتابة كل millisecond أثناء التحريك)
+function persistShareThrottled(){
+  clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(()=> writeShareToken(buildShareState()), 250);
 }
 
 // ================= خريطة Google =================
@@ -162,26 +148,29 @@ function addCircleForLocation(loc){
     editable: false,
   });
 
-  // تفاعلات كرت المعلومات
   circle.addListener('mouseover', () => { if(!cardPinned){ showInfo(loc, circle); } });
   circle.addListener('mouseout',  () => { if(!cardPinned){ hideInfoCard(); } });
   circle.addListener('click', () => {
     showInfo(loc, circle);
-    cardPinned = true; // نثبّت بالكليك
-    pinCard.setAttribute('aria-pressed','true');
+    cardPinned = true;
+    if (pinCard) pinCard.setAttribute('aria-pressed','true');
   });
 
   circles.push({ id: loc.id, circle, meta: loc });
 }
 
 function setMapType(type, silent=false){
+  if (!map) return;
   map.setMapTypeId(type);
-  btnRoadmap.setAttribute('aria-pressed', String(type === 'roadmap'));
-  btnSatellite.setAttribute('aria-pressed', String(type !== 'roadmap'));
-  if (!silent) persistShare();
+  if (btnRoadmap && btnSatellite){
+    btnRoadmap.setAttribute('aria-pressed', String(type === 'roadmap'));
+    btnSatellite.setAttribute('aria-pressed', String(type !== 'roadmap'));
+  }
+  if (!silent) persistShareThrottled();
 }
 
 function toggleTraffic(){
+  if (!map || !trafficLayer) return;
   const visible = btnTraffic.getAttribute('aria-pressed') === 'true';
   if (visible){
     trafficLayer.setMap(null);
@@ -190,106 +179,142 @@ function toggleTraffic(){
     trafficLayer.setMap(map);
     btnTraffic.setAttribute('aria-pressed','true');
   }
-  persistShare();
+  persistShareThrottled();
 }
 
 function showInfo(loc, circle){
+  if (!infoCard) return;
   const c = circle.getCenter();
-  infoTitle.textContent = loc.name || '—';
-  infoSubtitle.textContent = loc.notes || '';
-  infoLatLng.textContent = `${c.lat().toFixed(6)}, ${c.lng().toFixed(6)}`;
-  infoRadius.textContent = `${Math.round(circle.getRadius())} م`;
+  if (infoTitle) infoTitle.textContent = loc.name || '—';
+  if (infoSubtitle) infoSubtitle.textContent = loc.notes || '';
+  if (infoLatLng) infoLatLng.textContent = `${c.lat().toFixed(6)}, ${c.lng().toFixed(6)}`;
+  if (infoRadius) infoRadius.textContent = `${Math.round(circle.getRadius())} م`;
 
-  if (loc.notes){
+  if (loc.notes && infoNotes && infoNotesRow){
     infoNotes.textContent = loc.notes;
     infoNotesRow.classList.remove('hidden');
-  } else {
+  } else if (infoNotesRow){
     infoNotesRow.classList.add('hidden');
   }
 
   infoCard.classList.remove('hidden');
 }
-function hideInfoCard(){ infoCard.classList.add('hidden'); }
+function hideInfoCard(){ if (infoCard) infoCard.classList.add('hidden'); }
 
 // ================= المستلمون =================
-function getRecipients(){ // للتهيئة الأولى فقط
-  const raw = localStorage.getItem('recipients') || '';
-  return raw.split(',').map(s=>s.trim()).filter(Boolean);
+function getRecipients(){
+  try{
+    const raw = localStorage.getItem('recipients') || '';
+    return raw.split(',').map(s=>s.trim()).filter(Boolean);
+  }catch{ return []; }
 }
 function openRecipientsEditor(){
+  if (!recipientsModal) return;
   recipientsInput.value = getRecipients().join(', ') || recipientsInput.value || '';
   recipientsModal.classList.remove('hidden');
   recipientsModal.setAttribute('aria-hidden','false');
 }
 function closeRecipientsEditor(){
+  if (!recipientsModal) return;
   recipientsModal.classList.add('hidden');
   recipientsModal.setAttribute('aria-hidden','true');
 }
 function onSaveRecipients(){
   const list = recipientsInput.value.split(',').map(s=>s.trim()).filter(Boolean);
-  localStorage.setItem('recipients', list.join(', '));
-  persistShare();
+  try{ localStorage.setItem('recipients', list.join(', ')); }catch{}
+  persistShareThrottled();
   showToast('تم الحفظ وتحديث المستلمين');
   closeRecipientsEditor();
 }
 
-// ================= إشعار بسيط =================
+// ================= إشعار =================
 let toastTimer;
 function showToast(msg){
+  if (!toast) return;
   toast.textContent = msg;
   toast.classList.remove('hidden');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=>toast.classList.add('hidden'), 2200);
 }
 
-// ================= initMap (مهم: مرفوعة على window قبل تحميل Google) =================
+// ================= initMap =================
 function initMap(){
-  // أنشئ الخريطة
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: DEFAULT_CENTER,
-    zoom: DEFAULT_ZOOM,
-    mapTypeId: 'roadmap',
-    disableDefaultUI: true,
-    clickableIcons: false,
-    gestureHandling: 'greedy',
-  });
+  // اجلب عناصر الواجهة بأمان هنا (DOM جاهز مع defer)
+  btnRoadmap     = document.getElementById('btnRoadmap');
+  btnSatellite   = document.getElementById('btnSatellite');
+  btnTraffic     = document.getElementById('btnTraffic');
+  btnRecipients  = document.getElementById('btnRecipients');
+
+  infoCard       = document.getElementById('infoCard');
+  infoTitle      = document.getElementById('infoTitle');
+  infoSubtitle   = document.getElementById('infoSubtitle');
+  infoLatLng     = document.getElementById('infoLatLng');
+  infoRadius     = document.getElementById('infoRadius');
+  infoNotesRow   = document.getElementById('infoNotesRow');
+  infoNotes      = document.getElementById('infoNotes');
+  pinCard        = document.getElementById('pinCard');
+  closeCard      = document.getElementById('closeCard');
+
+  recipientsModal= document.getElementById('recipientsModal');
+  recipientsInput= document.getElementById('recipientsInput');
+  saveRecipients = document.getElementById('saveRecipients');
+  cancelRecipients=document.getElementById('cancelRecipients');
+
+  toast          = document.getElementById('toast');
+
+  // أنشئ الخريطة (مع حراسة استثنائية)
+  try{
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+      mapTypeId: 'roadmap',
+      disableDefaultUI: true,
+      clickableIcons: false,
+      gestureHandling: 'greedy',
+    });
+  }catch(e){
+    console.error('Google Map init error', e);
+    showToast('تعذّر تحميل الخريطة. تحقّق من مفتاح Google/API.');
+    return;
+  }
+
   trafficLayer = new google.maps.TrafficLayer();
 
   // ربط الأزرار
-  btnRoadmap.addEventListener('click', () => setMapType('roadmap'));
-  btnSatellite.addEventListener('click', () => setMapType('hybrid'));
-  btnTraffic.addEventListener('click', toggleTraffic);
+  if (btnRoadmap)   btnRoadmap.addEventListener('click', () => setMapType('roadmap'));
+  if (btnSatellite) btnSatellite.addEventListener('click', () => setMapType('hybrid'));
+  if (btnTraffic)   btnTraffic.addEventListener('click', toggleTraffic);
 
-  btnRecipients.addEventListener('click', openRecipientsEditor);
-  saveRecipients.addEventListener('click', onSaveRecipients);
-  cancelRecipients.addEventListener('click', closeRecipientsEditor);
+  if (btnRecipients) btnRecipients.addEventListener('click', openRecipientsEditor);
+  if (saveRecipients) saveRecipients.addEventListener('click', onSaveRecipients);
+  if (cancelRecipients) cancelRecipients.addEventListener('click', closeRecipientsEditor);
 
-  pinCard.addEventListener('click', () => {
+  if (pinCard) pinCard.addEventListener('click', () => {
     cardPinned = !cardPinned;
     pinCard.setAttribute('aria-pressed', String(cardPinned));
     showToast(cardPinned ? 'تم تثبيت الكرت' : 'تم إلغاء تثبيت الكرت');
   });
-  closeCard.addEventListener('click', () => { cardPinned = false; hideInfoCard(); });
+  if (closeCard) closeCard.addEventListener('click', () => { cardPinned = false; hideInfoCard(); });
 
   // أضف الدوائر
   LOCATIONS.forEach(addCircleForLocation);
 
-  // طبّق حالة المشاركة إن وُجدت
+  // طبّق حالة المشاركة إن وُجدت، وإلا جهّز مستلمين البداية واكتب رابط أولي
   const S = readShareToken();
-  if (S) applyShareState(S);
-  else {
-    // حمّل المستلمين المحليين كبداية (للاستخدام الأول)
-    recipientsInput.value = getRecipients().join(', ');
-    persistShare(); // اكتب رابط مشاركة أولي
+  if (S) {
+    applyShareState(S);
+  } else {
+    try { recipientsInput.value = getRecipients().join(', '); } catch{}
+    persistShareThrottled();
   }
 
-  // عند تحريك/تكبير الخريطة، حدّث مركز/زووم في الرابط
-  map.addListener('idle', () => { persistShare(); });
+  // حدّث الرابط بعد تحريك/تكبير (بـ throttle)
+  map.addListener('idle', persistShareThrottled);
 }
 
-// اجعلها متاحة قبل تحميل سكربت Google
+// اجعلها متاحة قبل تحميل سكربت Google (منع السباق)
 window.initMap = initMap;
 
-// ================= ملاحظات تقنية =================
-// - تحذير Google حول Marker/Overlay قد يظهر أحيانًا وهو غير مانع.
-// - 404 favicon.ico غير مؤثر. أضف أيقونة إن رغبت.
+// ================= ملاحظات =================
+// - إذا بقيت الخلفية فقط بدون طبقات: تأكد من صلاحيات مفتاح Google على نطاق Render.
+// - 404 favicon.ico غير مؤثر.
