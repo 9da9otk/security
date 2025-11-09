@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن – طبقات + وضع العرض</title>
+  <title>خريطة الأمن – Diriyah</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- شريط علوي يظهر فقط في وضع العرض -->
+  <!-- شريط يظهر فقط في وضع العرض -->
   <div id="sharebar" class="sharebar hidden">
     <span>وضع العرض</span>
     <a id="exit-share" href="./" aria-label="إنهاء العرض">إنهاء العرض</a>
@@ -16,12 +16,12 @@
   <!-- الخريطة -->
   <div id="map" aria-label="الخريطة" role="application"></div>
 
-  <!-- لوحة التحكّم (تُخفى في وضع العرض) -->
+  <!-- لوحة التحكم (مخفاة في وضع العرض) -->
   <aside id="panel" class="panel">
     <h3>الطبقات</h3>
     <label class="row">
       <input id="toggle-markers" type="checkbox" checked />
-      <span>المواقع (Markers)</span>
+      <span>المواقع</span>
     </label>
     <label class="row">
       <input id="toggle-circles" type="checkbox" checked />
@@ -41,46 +41,61 @@
     <div class="sep"></div>
 
     <button id="share-btn" class="btn">نسخ رابط العرض</button>
-    <small class="hint">ينسخ رابطًا يتضمّن المركز والتقريب والطبقات.</small>
+    <small class="hint">ينسخ رابط عرض فقط (lat/lng/zoom/type/traffic).</small>
     <div id="toast" class="toast hidden" role="status" aria-live="polite">تم النسخ ✅</div>
   </aside>
 
+  <!-- زر حركة المرور (يظهر في الوضعين) -->
+  <button id="traffic-toggle" class="floating-btn" aria-pressed="false" title="إظهار/إخفاء حركة المرور">
+    حركة المرور
+  </button>
+
   <!-- كرت المعلومات -->
   <aside id="info-card" class="card hidden" aria-live="polite">
+    <!-- شعار الدرعية أعلى يمين -->
+    <img class="brand" src="img/diriyah-logo.png" alt="Diriyah Company" />
     <button class="close" aria-label="إغلاق">×</button>
+
     <h3 id="site-name">—</h3>
     <p class="meta"><span id="site-type">—</span></p>
+
+    <div class="row"><div>الإحداثيات</div><div id="site-coord">—</div></div>
+    <div class="row"><div>نصف القطر</div><div id="site-radius">15 م</div></div>
     <div class="row">
-      <div>الإحداثيات</div>
-      <div id="site-coord">—</div>
+      <div>المستلمون</div>
+      <div id="site-recipients">—</div>
     </div>
-    <div class="row">
-      <div>نصف القطر</div>
-      <div id="site-radius">15 م</div>
+
+    <!-- زر تحرير المستلمين (يظهر فقط خارج وضع العرض) -->
+    <div id="edit-actions" class="actions hidden">
+      <button id="edit-recipients" class="btn small">تعديل المستلمين</button>
     </div>
   </aside>
 
+  <!-- صندوق التحرير (Modal) — لا يُستخدم في وضع العرض -->
+  <div id="editor" class="editor hidden" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+    <div class="editor-box">
+      <h3 id="editor-title">تحرير المستلمين</h3>
+      <p class="hint">اكتب اسمًا في كل سطر. سيتم حفظها لهذا الموقع فقط.</p>
+      <textarea id="editor-input" rows="8" spellcheck="false" dir="auto"></textarea>
+      <div class="editor-actions">
+        <button id="editor-cancel" class="btn ghost">إلغاء</button>
+        <button id="editor-save" class="btn">حفظ</button>
+      </div>
+    </div>
+  </div>
+
   <noscript>هذه الصفحة تتطلب تفعيل JavaScript لعرض خريطة Google.</noscript>
 
-  <!-- ملفك أولاً -->
   <script defer src="js/main.js"></script>
-
-  <!-- خرائط Google: ضع المفتاح بدل XXXXX (بدون محارف خفيّة) -->
+  <!-- ضع مفتاحك بدل XXXXX -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&v=weekly&callback=initMap"></script>
 
-  <!-- مراقبة فشل التحميل -->
   <script>
     window.addEventListener('error', (e) => {
-      try {
-        const u = new URL(e.filename || '');
-        if (u.host.includes('maps.googleapis.com')) {
-          console.error('فشل تحميل سكربت خرائط Google (تحقق من المفتاح/القيود/الشبكة).');
-        }
-      } catch {}
+      try { const u = new URL(e.filename || ''); if (u.host.includes('maps.googleapis.com')) console.error('فشل تحميل سكربت خرائط Google'); } catch {}
     }, true);
-    window.gm_authFailure = function () {
-      console.error('فشل التوثيق مع Google Maps API: تحقّق من المفتاح أو قيود المراجع.');
-    };
+    window.gm_authFailure = function () { console.error('فشل التوثيق مع Google Maps API'); };
   </script>
 </body>
 </html>
