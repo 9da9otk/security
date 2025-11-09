@@ -7,10 +7,9 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- يظهر فقط في وضع العرض -->
+  <!-- شريط تلميح بسيط في وضع العرض (بدون زر إنهاء) -->
   <div id="sharebar" class="sharebar hidden">
-    <span>وضع العرض</span>
-    <a id="exit-share" href="/" aria-label="إنهاء العرض">إنهاء العرض</a>
+    <span>وضع العرض (عرض فقط)</span>
   </div>
 
   <div id="map" aria-label="الخريطة" role="application"></div>
@@ -52,7 +51,7 @@
     <div id="toast" class="toast hidden" role="status" aria-live="polite">تم النسخ ✅</div>
   </aside>
 
-  <!-- زر حركة المرور (متاح في الوضعين، لا يغيّر البيانات) -->
+  <!-- زر حركة المرور (ظاهر في الوضعين) -->
   <button id="traffic-toggle" class="floating-btn" aria-pressed="false" title="إظهار/إخفاء حركة المرور">حركة المرور</button>
 
   <!-- كرت المعلومات -->
