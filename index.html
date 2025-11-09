@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-app="diriyah-map">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -26,7 +26,7 @@
     .badge-share{ background:rgba(255,255,255,0.08); }
     .badge-edit{ background:#1f5a1f; border-color:#2d7a2d; color:#d8ffd8; }
 
-    /* أخفِ زر إغلاق الـInfoWindow دائمًا */
+    /* أخفِ زر إغلاق نافذة المعلومات */
     .gm-style-iw button.gm-ui-hover-effect{ display:none !important; }
     .gm-style-iw-d{ overflow:visible !important; }
 
@@ -42,6 +42,9 @@
     .toast { position: fixed; right: 14px; bottom: 14px; z-index: 15; background: rgba(22,22,24,0.85);
       color:#fff; border:1px solid rgba(255,255,255,.12); padding:8px 12px; border-radius:10px; backdrop-filter: blur(10px); }
     .toast.hidden { display:none; }
+
+    /* إخفاء زر التحرير تلقائياً في وضع المشاهدة فقط */
+    body[data-viewonly="1"] #btnEditMode { display:none !important; }
   </style>
 </head>
 <body>
