@@ -1,8 +1,4 @@
-/* Diriyah Security Map – v5.2
-   - Glass Info Card (no X), wider and clear
-   - Circle editor (radius/color/stroke/fill) in Edit mode only
-   - Share button copies short hash link; share URL loads view-only (no edit)
-*/
+/* Diriyah Security Map – v6 (Mobile-proof Share + Glass Card + View-only on share) */
 
 let map, trafficLayer, infoWin=null;
 let cardPinned=false, editMode=false, shareMode=false, hideTimer=null;
@@ -39,13 +35,80 @@ const LOCATIONS = [
   { id:18, name:"مزرعة الحبيب",                          lat:24.709445443672344, lng:46.593971867951346 },
 ];
 
-const circles = []; // [{id, circle, meta:{name, recipients:[], ...}}]
+const circles = []; // [{id, circle, meta:{name, recipients:[]}}]
 
-/* ===== Share (encode/decode) ===== */
-function enc(o){ try{return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}catch{return"";} }
-function dec(t){ try{return JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/')))));}catch{return null;} }
-function readShare(){ if(!location.hash) return null; const p=new URLSearchParams(location.hash.slice(1)); const s=p.get('s'); return s?dec(s):null; }
-function writeShare(st){ if(shareMode) return; const token=enc(st); const h=`#s=${token}&t=${Date.now().toString(36).slice(-6)}`; if(location.hash!==h) history.replaceState(null,'',h); }
+/* ========= LZ-String (subset) لروابط قصيرة وآمنة ========= */
+const LZ = (function(){
+  function u(e){return unescape(encodeURIComponent(e))}
+  function d(e){return decodeURIComponent(escape(e))}
+  const f="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+  const keyStrUriSafe=f;
+  function getBaseValue(alphabet,c){return alphabet.indexOf(c)}
+  function compressToEncodedURIComponent(input){
+    if(input==null) return "";
+    return _compress(input,6,function(a){return keyStrUriSafe.charAt(a)})+"~";
+  }
+  function decompressFromEncodedURIComponent(input){
+    if(input==null) return "";
+    if(input.charAt(input.length-1)!=="~") return "";
+    input=input.substring(0,input.length-1);
+    return _decompress(input.length,32,function(index){return getBaseValue(keyStrUriSafe,input.charAt(index))});
+  }
+  function _compress(uncompressed, bitsPerChar, getCharFromInt){
+    if(uncompressed==null) return "";
+    var i,value,context_dictionary={},context_dictionaryToCreate={},context_c,context_wc,context_w="",context_enlargeIn=2,context_dictSize=3,context_numBits=2,context_data=[],context_data_val=0,context_data_position=0;
+    for(i=0;i<uncompressed.length;i+=1){context_c=uncompressed.charAt(i);if(!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)){context_dictionary[context_c]=context_dictSize++;context_dictionaryToCreate[context_c]=true}
+      context_wc=context_w+context_c;if(Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)){context_w=context_wc}else{if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){if(context_w.charCodeAt(0)<256){for(i=0;i<context_numBits;i++)context_data_val=context_data_val<<1;if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ ;value=context_w.charCodeAt(0);for(i=0;i<8;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }}else{value=1;for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } value=context_w.charCodeAt(0);for(i=0;i<16;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }} context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} delete context_dictionaryToCreate[context_w]}else{value=context_dictionary[context_w];for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } } context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} context_dictionary[context_wc]=context_dictSize++; context_w=String(context_c)}
+    if(context_w!==""){ if(Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)){ if(context_w.charCodeAt(0)<256){ for(i=0;i<context_numBits;i++)context_data_val=context_data_val<<1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=context_w.charCodeAt(0); for(i=0;i<8;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 }} else { value=1; for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ } value=context_w.charCodeAt(0); for(i=0;i<16;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++; value=value>>1 } } context_enlargeIn--; if(context_enlargeIn==0){context_enlargeIn=Math.pow(2,context_numBits);context_numBits++} } value=2; for(i=0;i<context_numBits;i++){context_data_val=context_data_val<<1|value&1; if(context_data_position==bitsPerChar-1){context_data_position=0;context_data.push(getCharFromInt(context_data_val));context_data_val=0}else context_data_position++ }
+    while(true){context_data_val=context_data_val<<1; if(context_data_position==bitsPerChar-1){context_data.push(getCharFromInt(context_data_val));break}else context_data_position++}
+    return context_data.join("");
+  }
+  function _decompress(length, resetValue, getNextValue){
+    var dictionary=[], next, enlargeIn=4, dictSize=4, numBits=3, entry="", result=[], i, w, bits, resb, maxpower, power, c, data={val:getNextValue(0), position:resetValue, index:1};
+    for(i=0;i<3;i+=1) dictionary[i]=i;
+    bits=0; maxpower=Math.pow(2,2); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 }
+    switch(next=bits){
+      case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } c=String.fromCharCode(bits); break;
+      case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } c=String.fromCharCode(bits); break;
+      case 2: return "";
+    }
+    dictionary[3]=c; w=c; result.push(c);
+    while(true){
+      if(data.index>length) return "";
+      bits=0; maxpower=Math.pow(2,numBits); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 }
+      switch(c=next=bits){
+        case 0: bits=0; maxpower=Math.pow(2,8); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
+        case 1: bits=0; maxpower=Math.pow(2,16); power=1; while(power!=maxpower){ resb=data.val&data.position; data.position>>=1; if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++);} bits|=(resb>0?1:0)*power; power<<=1 } dictionary[dictSize++]=String.fromCharCode(bits); c=dictSize-1; enlargeIn--; break;
+        case 2: return result.join("");
+      }
+      if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++}
+      if(dictionary[c]){ entry=dictionary[c]; }
+      else{ if(c===dictSize){ entry=w+w.charAt(0); } else { return ""; } }
+      result.push(entry); dictionary[dictSize++]=w+entry.charAt(0); enlargeIn--; w=entry; if(enlargeIn==0){enlargeIn=Math.pow(2,numBits); numBits++}
+    }
+  }
+  return { c:compressToEncodedURIComponent, d:decompressFromEncodedURIComponent };
+})();
+/* ========================================================= */
+
+/* ===== Share helpers: token في #x=token(.ts) ===== */
+function readShareToken() {
+  const h = location.hash || "";
+  if (!h.startsWith("#x=")) return null;
+  // يدعم #x=token أو #x=token.ts
+  const raw = h.slice(3);
+  const token = raw.split(".")[0];
+  const json = LZ.d(token);
+  if (!json) return null;
+  try { return JSON.parse(json); } catch { return null; }
+}
+function writeShareToken(state){
+  if (shareMode) return;
+  const token = LZ.c(JSON.stringify(state));
+  const h = `#x=${token}.${Date.now().toString(36).slice(-6)}`;
+  if (location.hash !== h) history.replaceState(null, "", h);
+}
+
 function buildState(){
   const ctr=map.getCenter(), z=map.getZoom();
   const m=map.getMapTypeId()==='roadmap'?'r':'h';
@@ -82,11 +145,10 @@ function applyState(s){
     });
   }
 }
-let shareTimer=null; const persist=()=>{ if(shareMode) return; clearTimeout(shareTimer); shareTimer=setTimeout(()=>writeShare(buildState()),220); };
+let persistTimer=null; const persist=()=>{ if(shareMode) return; clearTimeout(persistTimer); persistTimer=setTimeout(()=>writeShareToken(buildState()),220); };
 
 /* ===== Init ===== */
 function initMap(){
-  // refs
   btnRoadmap  = document.getElementById('btnRoadmap');
   btnSatellite= document.getElementById('btnSatellite');
   btnTraffic  = document.getElementById('btnTraffic');
@@ -105,22 +167,29 @@ function initMap(){
   btnSatellite.onclick = ()=>{ map.setMapTypeId('hybrid');   btnSatellite.setAttribute('aria-pressed','true'); btnRoadmap.setAttribute('aria-pressed','false');  persist(); };
   btnTraffic.onclick   = ()=>{ const on=btnTraffic.getAttribute('aria-pressed')==='true'; if(on){trafficLayer.setMap(null);} else {trafficLayer.setMap(map);} btnTraffic.setAttribute('aria-pressed', String(!on)); persist(); };
 
-  btnEditMode.onclick  = ()=>{ editMode=!editMode; modeBadge.textContent=editMode?'Edit':'Share'; modeBadge.className='badge '+(editMode?'badge-edit':'badge-share'); cardPinned=false; if(infoWin) infoWin.close(); };
+  btnEditMode.onclick  = ()=>{ if(shareMode) return; editMode=!editMode; modeBadge.textContent=editMode?'Edit':'Share'; modeBadge.className='badge '+(editMode?'badge-edit':'badge-share'); cardPinned=false; if(infoWin) infoWin.close(); };
   btnShare.onclick     = copyShareLink;
 
-  // دوائر
+  // أنشئ الدوائر أولاً
   LOCATIONS.forEach(addCircle);
 
-  // Share mode?
-  const S=readShare(); shareMode=!!S;
-  if(S){ applyState(S); /* وضع عرض فقط */ editMode=false; btnEditMode.style.display='none'; modeBadge.textContent='Share'; modeBadge.className='badge badge-share'; }
-  else { writeShare(buildState()); }
+  // اقرأ المشاركة (متوافق جوال) ثم طبّق وضع العرض
+  const S = readShareToken();
+  shareMode = !!S;
+  if(S){ applyState(S); setViewOnly(); }
+  else { writeShareToken(buildState()); }
 
-  // أحداث عامة
   map.addListener('idle', persist);
   map.addListener('click', ()=>{ cardPinned=false; if(infoWin) infoWin.close(); });
 }
 window.initMap = initMap;
+
+function setViewOnly(){
+  editMode = false;
+  modeBadge.textContent='Share';
+  modeBadge.className='badge badge-share';
+  if(btnEditMode){ btnEditMode.style.display='none'; btnEditMode.disabled=true; }
+}
 
 /* ===== Circles & Card ===== */
 function addCircle(loc){
@@ -147,7 +216,7 @@ function openCard(item){
   infoWin.setPosition(item.circle.getCenter());
   infoWin.open({ map });
 
-  // أخفِ X والذيل + خلفية الفقاعة الافتراضية (احتياطيًا بجانب CSS)
+  // إزالة الـX والذيل افتراضيًا
   setTimeout(()=>{
     const root = document.getElementById('iw-root');
     if(!root) return;
@@ -171,7 +240,7 @@ function renderCard(item){
     ? `<ol style="margin:6px 0 0 0;padding-inline-start:20px;">${names.map(n=>`<li>${escapeHtml(n)}</li>`).join('')}</ol>`
     : `<div class="note">لا توجد أسماء مضافة</div>`;
 
-  // قيم التحرير الحالية
+  // قيم التحرير
   const radius = Math.round(c.getRadius());
   const color  = c.get('strokeColor') || DEFAULT_COLOR;
   const stroke = c.get('strokeWeight') || DEFAULT_STROKE_WEIGHT;
@@ -186,12 +255,11 @@ function renderCard(item){
       border-radius: 18px; padding: 14px; color:#111;
       box-shadow: 0 16px 36px rgba(0,0,0,.22);">
 
-      <!-- رأس عريض يملأ مساحة الـX السابقة -->
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
         <img src="img/diriyah-logo.png" alt="Diriyah" style="width:50px; height:50px; object-fit:contain;">
         <div style="font-weight:800; font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(meta.name)}</div>
         <div style="margin-inline-start:auto;"></div>
-        ${editMode ? `<span class="badge-edit" style="padding:2px 8px;border-radius:8px;background:#1f5a1f;color:#eaffea;border:1px solid #2d7a2d;">وضع التحرير</span>` : ``}
+        ${(!shareMode && editMode) ? `<span class="badge-edit" style="padding:2px 8px;border-radius:8px;background:#1f5a1f;color:#eaffea;border:1px solid #2d7a2d;">وضع التحرير</span>` : ``}
       </div>
 
       <div style="border-top:1px dashed #e7e7e7; padding-top:8px;">
@@ -199,7 +267,7 @@ function renderCard(item){
         ${namesHtml}
       </div>
 
-      ${editMode ? `
+      ${(!shareMode && editMode) ? `
       <div style="margin-top:12px; border-top:1px dashed #e7e7e7; padding-top:10px;">
         <div style="font-weight:700; margin-bottom:6px;">أدوات الدائرة:</div>
         <div class="form-grid">
@@ -237,7 +305,7 @@ function renderCard(item){
 }
 
 function attachCardEvents(item){
-  if(!editMode) return;
+  if(shareMode || !editMode) return;
   const c=item.circle;
   const r = document.getElementById('ctl-radius');
   const lr= document.getElementById('lbl-radius');
@@ -260,38 +328,17 @@ function attachCardEvents(item){
 
 /* ===== Share button ===== */
 async function copyShareLink(){
-  // حدّث الهاش الحالي أولاً
-  writeShare(buildState());
-  try{
-    await navigator.clipboard.writeText(location.href);
-    showToast('تم نسخ رابط المشاركة ✅');
-  }catch{
-    // بديل لمنع المتصفح
-    const tmp=document.createElement('input');
-    tmp.value=location.href; document.body.appendChild(tmp);
-    tmp.select(); document.execCommand('copy'); tmp.remove();
-    showToast('تم نسخ رابط المشاركة ✅');
+  writeShareToken(buildState());
+  try{ await navigator.clipboard.writeText(location.href); showToast('تم نسخ رابط المشاركة ✅'); }
+  catch{
+    const tmp=document.createElement('input'); tmp.value=location.href; document.body.appendChild(tmp);
+    tmp.select(); document.execCommand('copy'); tmp.remove(); showToast('تم نسخ رابط المشاركة ✅');
   }
 }
 
 /* ===== Helpers ===== */
 function clamp(x,min,max){ return Math.min(max, Math.max(min, x)); }
-function toHex(col){
-  if(/^#/.test(col)) return col;
-  const m = col.match(/rgba?\s*\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
-  if(!m) return DEFAULT_COLOR;
-  const [r,g,b]=[+m[1],+m[2],+m[3]];
-  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
-}
-function parseRecipients(text){
-  return String(text).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean);
-}
-function escapeHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-function showToast(msg){
-  if(!toast) return;
-  toast.textContent = msg;
-  toast.classList.remove('hidden');
-  setTimeout(()=>toast.classList.add('hidden'), 1600);
-}
+function toHex(col){ if(/^#/.test(col)) return col; const m=col.match(/rgba?\s*\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i); if(!m) return DEFAULT_COLOR; const [r,g,b]=[+m[1],+m[2],+m[3]]; return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join(''); }
+function parseRecipients(text){ return String(text).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean); }
+function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function showToast(msg){ if(!toast) return; toast.textContent=msg; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'),1600); }
