@@ -9,13 +9,8 @@ function toBase64Url(b64){ return b64.replace(/\+/g,'-').replace(/\//g,'_').repl
 function fromBase64Url(b64url){ let b64=b64url.replace(/-/g,'+').replace(/_/g,'/'); while(b64.length%4)b64+='='; return b64; }
 
 // ===== ضغط شديد v=c2 =====
-// الشكل: {v:'c2', t:0/1, s:[ [name, type, latB36, lngB36, style? , rec?] ... ] }
-// latB36/lngB36 = (lat*1e5 | lng*1e5) بالأساس 36 (تدعم الإشارة)
-// style = [r, fillHex, fop, strokeHex, sw] إذا تغيّر عن الافتراضي
-// rec = "a|b|c" إن وُجد
 const DEF_STYLE = { radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 };
-
-function nToB36(n){ return Math.round(n).toString(36); }      // يدعم السالب
+function nToB36(n){ return Math.round(n).toString(36); }
 function b36ToN(s){ return parseInt(s, 36); }
 
 function packSite(site){
@@ -59,7 +54,7 @@ function unpackSite(arr){
     };
   }
   const recipients = recStr ? recStr.split('|') : [];
-  const id = 's-' + Math.random().toString(36).slice(2,8); // معرف قصير
+  const id = 's-' + Math.random().toString(36).slice(2,8);
   return { id, name, type, lat, lng, recipients, style };
 }
 function encodeShareState(state){
@@ -116,8 +111,16 @@ function defaultState(){
 // ===== التطبيق =====
 window.initMap = function () {
   const params = getParams();
-  const isShare = params.get('view') === 'share';
-  if (isShare) document.body.classList.add('share');
+  const isShare = ((params.get('view')||'').toLowerCase() === 'share');
+
+  // وسم body وتصفية الواجهة في وضع العرض (إزالة فعلية لعناصر التحرير)
+  if (isShare) {
+    document.body.classList.add('share');
+    // إزالة اللوحة والمحرر وأزرار التحرير نهائيًا حتى لو تعطّل CSS
+    document.getElementById('panel')?.remove();
+    document.getElementById('editor')?.remove();
+    document.getElementById('edit-actions')?.remove();
+  }
 
   // الحالة: في العرض من s= فقط، وفي العادي من LocalStorage أو الافتراضي
   let state = isShare
@@ -136,9 +139,9 @@ window.initMap = function () {
   const trafficLayer = new google.maps.TrafficLayer();
   let trafficOn = !!state.traffic;
   const trafficBtn = document.getElementById('traffic-toggle');
-  function setTraffic(on){ trafficOn = !!on; trafficBtn.setAttribute('aria-pressed', on?'true':'false'); trafficLayer.setMap(on?map:null); }
+  function setTraffic(on){ trafficOn = !!on; trafficBtn?.setAttribute('aria-pressed', on?'true':'false'); trafficLayer.setMap(on?map:null); }
   setTraffic(trafficOn);
-  trafficBtn.addEventListener('click', () => setTraffic(!trafficOn));
+  trafficBtn?.addEventListener('click', () => setTraffic(!trafficOn));
 
   // عناصر الكرت/المحرر
   const card = document.getElementById('info-card');
@@ -148,7 +151,6 @@ window.initMap = function () {
   const radiusEl = document.getElementById('site-radius');
   const recEl = document.getElementById('site-recipients');
   const editActions = document.getElementById('edit-actions');
-  const editBtn = document.getElementById('edit-recipients');
   const editor = document.getElementById('editor');
   const editorInput = document.getElementById('editor-input');
   const editorSave = document.getElementById('editor-save');
@@ -169,7 +171,7 @@ window.initMap = function () {
     coordEl.textContent = `${toFixed6(site.lat)}, ${toFixed6(site.lng)}`;
     radiusEl.textContent = `${site.style.radius} م`;
     recEl.textContent = renderRecipients(site.recipients);
-    if (!isShare) editActions.classList.remove('hidden'); else editActions.classList.add('hidden');
+    if (!isShare) editActions.classList.remove('hidden'); else editActions?.classList.add('hidden');
     card.classList.remove('hidden');
     if (!isShare) {
       document.getElementById('ed-radius').value   = site.style.radius;
@@ -196,7 +198,6 @@ window.initMap = function () {
       radiusEl.textContent = `${site.style.radius} م`;
       recEl.textContent = renderRecipients(site.recipients);
     }
-    // خزّن لقطة حديثة دائمًا
     if (!isShare) saveLocal(snapshotState());
   }
 
@@ -261,7 +262,6 @@ window.initMap = function () {
     toggleCircles.addEventListener('change', () => { const on = toggleCircles.checked; circles.forEach(c=>c.setMap(on?map:null)); });
     baseMapSel.addEventListener('change', () => map.setMapTypeId(baseMapSel.value));
 
-    // ==== تعديل خصائص الدائرة المختارة (مع أرقام فعلية) ====
     function withSel(fn){ if (!selectedId) return; const s = byId[selectedId]; fn(s); syncFeature(s); }
     edRadius.addEventListener('input',  () => withSel(s => s.style.radius       = edRadius.valueAsNumber || parseInt(edRadius.value,10)));
     edFill  .addEventListener('input',  () => withSel(s => s.style.fill         = (edFill.value||'#60a5fa').toLowerCase()));
@@ -269,7 +269,6 @@ window.initMap = function () {
     edStroke.addEventListener('input',  () => withSel(s => s.style.stroke       = (edStroke.value||'#60a5fa').toLowerCase()));
     edStrokeW.addEventListener('input', () => withSel(s => s.style.strokeWeight = edStrokeW.valueAsNumber || parseInt(edStrokeW.value,10)));
 
-    // إضافة/حذف
     btnAdd.addEventListener('click', () => {
       const c = map.getCenter();
       const site = { id:'s-'+Math.random().toString(36).slice(2,8), name:'موقع جديد', type:'نقطة', lat:c.lat(), lng:c.lng(),
@@ -292,7 +291,7 @@ window.initMap = function () {
     });
 
     // محرر المستلمين
-    editBtn?.addEventListener('click', () => {
+    document.getElementById('edit-recipients')?.addEventListener('click', () => {
       if (!selectedId) return; const s = byId[selectedId];
       editorInput.value = (s.recipients || []).join('\n'); editor.classList.remove('hidden'); editorInput.focus();
     });
@@ -328,17 +327,33 @@ window.initMap = function () {
 
     const shareBtnEl = document.getElementById('share-btn');
     const toast = document.getElementById('toast');
+    const previewBox = document.getElementById('share-preview');
+    const shareInput = document.getElementById('share-url');
+    const openBtn = document.getElementById('open-url');
+
     shareBtnEl.addEventListener('click', async () => {
-      const s = encodeShareState(snapshotState());       // لقطة فورية + ضغط c2
+      const s = encodeShareState(snapshotState());
       const url = `${location.origin}${location.pathname}?view=share&s=${s}`;
-      try{ await navigator.clipboard.writeText(url); }catch{}
-      toast.textContent='تم النسخ ✅'; toast.classList.remove('hidden');
+
+      previewBox?.classList.remove('hidden');
+      if (shareInput) shareInput.value = url;
+
+      let copied = false;
+      try { await navigator.clipboard.writeText(url); copied = true; } catch {}
+      if (!copied && shareInput){ shareInput.focus(); shareInput.select(); }
+
+      toast.textContent = copied ? 'تم النسخ ✅' : 'انسخ الرابط من الحقل ↑';
+      toast.classList.remove('hidden');
       setTimeout(()=>toast.classList.add('hidden'), 2000);
+    });
+    openBtn?.addEventListener('click', () => {
+      if (!shareInput?.value) return;
+      window.open(shareInput.value, '_blank');
     });
   }
 
   // الضغط على الخريطة = فك التثبيت وإخفاء الكرت
   map.addListener('click', () => { pinnedId=null; closeCard(); });
 
-  console.log(isShare ? 'Share View (c2 compact)' : 'Editor View');
+  console.log(isShare ? 'Share View (locked)' : 'Editor View');
 };
