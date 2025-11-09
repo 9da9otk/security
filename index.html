@@ -3,20 +3,36 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن – اختبار تشغيل</title>
+  <title>خريطة الأمن – دوائر 15م + كرت</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <div id="map" aria-label="الخريطة" role="application"></div>
+
+  <!-- كرت المعلومات المنبثق -->
+  <aside id="info-card" class="card hidden" aria-live="polite">
+    <button class="close" aria-label="إغلاق">×</button>
+    <h3 id="site-name">—</h3>
+    <p class="meta"><span id="site-type">—</span></p>
+    <div class="row">
+      <div>الإحداثيات</div>
+      <div id="site-coord">—</div>
+    </div>
+    <div class="row">
+      <div>نصف القطر</div>
+      <div id="site-radius">15 م</div>
+    </div>
+  </aside>
+
   <noscript>هذه الصفحة تتطلب تفعيل JavaScript لعرض خريطة Google.</noscript>
 
   <!-- ملفك أولاً -->
   <script defer src="js/main.js"></script>
 
-  <!-- سكربت خرائط Google: ضع المفتاح بدل XXXXX (بدون أي محارف خفية) -->
+  <!-- خرائط Google: ضع مفتاحك بدل XXXXX (بدون محارف خفية) -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&v=weekly&callback=initMap"></script>
 
-  <!-- مراقبة أخطاء التحميل من خرائط Google -->
+  <!-- مراقبة فشل تحميل سكربت خرائط Google -->
   <script>
     window.addEventListener('error', (e) => {
       try {
@@ -26,12 +42,9 @@
         }
       } catch {}
     }, true);
-
-    // التقط فشل التوثيق/المفتاح (إن وُجد)
     window.gm_authFailure = function () {
       console.error('فشل التوثيق مع Google Maps API: تحقّق من المفتاح أو قيود المراجع.');
     };
   </script>
 </body>
 </html>
-
