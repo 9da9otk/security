@@ -7,11 +7,12 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- شريط تلميح بسيط في وضع العرض (بدون زر إنهاء) -->
+  <!-- شريط تلميح يظهر فقط في وضع العرض (لا أزرار) -->
   <div id="sharebar" class="sharebar hidden">
     <span>وضع العرض (عرض فقط)</span>
   </div>
 
+  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة" role="application"></div>
 
   <!-- لوحة التحرير (لا تظهر في وضع العرض) -->
@@ -51,7 +52,7 @@
     <div id="toast" class="toast hidden" role="status" aria-live="polite">تم النسخ ✅</div>
   </aside>
 
-  <!-- زر حركة المرور (ظاهر في الوضعين) -->
+  <!-- زر حركة المرور (متاح في الوضعين) -->
   <button id="traffic-toggle" class="floating-btn" aria-pressed="false" title="إظهار/إخفاء حركة المرور">حركة المرور</button>
 
   <!-- كرت المعلومات -->
@@ -79,6 +80,7 @@
   <noscript>هذه الصفحة تتطلب تفعيل JavaScript لعرض خريطة Google.</noscript>
 
   <script defer src="js/main.js"></script>
+  <!-- ضع مفتاحك بدل XXXXX -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&v=weekly&callback=initMap"></script>
 </body>
 </html>
