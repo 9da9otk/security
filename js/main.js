@@ -1,11 +1,12 @@
 /* =======================
-   خريطة الأمن – main.js (stable, no optional chaining / nullish)
+   خريطة الأمن – main.js (stable)
    ======================= */
 
 /* ---------- Helpers ---------- */
 function toFixed6(x){ return Number(x).toFixed ? Number(x).toFixed(6) : x; }
 function qs(){ return new URLSearchParams(location.search); }
-function nz(v, d){ return (v===undefined || v===null) ? d : v; }   // null/undef -> default
+function nz(v,d){ return (v===undefined || v===null)? d : v; }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
 const DEF_STYLE = { radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 };
 
 /* ---------- Base64URL (للصيغة c2 القديمة) ---------- */
@@ -144,9 +145,8 @@ function defaultState(){
   });
   return { traffic:false, sites:s };
 }
-function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
-/* ---------- c2/c3/c4 ترميز المشاركة ---------- */
+/* ---------- ترميز المشاركة c2/c3/c4 ---------- */
 var nToB36=function(n){ return Math.round(n).toString(36); };
 var b36ToN=function(s){ return parseInt(s,36); };
 
@@ -294,6 +294,12 @@ window.initMap = function () {
   var closeBtn = card ? card.querySelector('.close') : null;
   if(closeBtn) closeBtn.addEventListener('click',function(){ pinnedId=null; closeCard(); });
 
+  // عناصر التحرير الخاصة بالمستلمين
+  var editBtn      = document.getElementById('edit-recipients'); // زر "تعديل المستلمين"
+  var editorBox    = document.getElementById('editor');          // صندوق التحرير (جانبي/منبثق)
+  var editorInput  = document.getElementById('editor-input');    // textarea
+  var editorClose  = document.getElementById('editor-close');    // زر إغلاق (اختياري)
+
   var markers=[], circles=[], byId={};
   var selectedId=null, pinnedId=null, hoverId=null;
 
@@ -314,19 +320,37 @@ window.initMap = function () {
       var epo=document.getElementById('ed-fillop'); if(epo) epo.value=s.style.fillOpacity;
       var es=document.getElementById('ed-stroke'); if(es) es.value=s.style.stroke;
       var esw=document.getElementById('ed-stroke-w'); if(esw) esw.value=s.style.strokeWeight;
-      var ei=document.getElementById('editor-input'); if(ei) ei.value=(s.recipients||[]).join('\n');
+      if(editorInput) editorInput.value=(s.recipients||[]).join('\n');
     }
   }
   function closeCard(){ if(card) card.classList.add('hidden'); selectedId=null; hoverId=null; }
+
+  function openEditor(s){
+    if(!editorBox) return;
+    editorBox.classList.remove('hidden');
+    if(editorInput){
+      editorInput.value = (s.recipients||[]).join('\n');
+      setTimeout(function(){ try{editorInput.focus(); editorInput.selectionStart=editorInput.value.length; editorInput.selectionEnd=editorInput.value.length;}catch(e){} },0);
+    }
+  }
+  function closeEditor(){ if(editorBox) editorBox.classList.add('hidden'); }
+
+  if(editBtn){
+    editBtn.addEventListener('click',function(){
+      if(isShare) return;            // في وضع العرض لا تحرير
+      if(!selectedId) return;
+      var s=byId[selectedId]; if(s) openEditor(s);
+    });
+  }
+  if(editorClose){ editorClose.addEventListener('click',function(){ closeEditor(); }); }
 
   function getCircleById(id){ for(var i=0;i<circles.length;i++){ if(circles[i].__id===id) return circles[i]; } return null; }
   function normHex(c){ c=String(c||'#60a5fa').toLowerCase(); return c.charAt(0)==='#'?c:'#'+c; }
 
   function snapshotFromMap(){
-    var ei=document.getElementById('editor-input');
-    if(ei && selectedId){
-      var s=byId[selectedId];
-      if(s){ s.recipients=String(ei.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean); }
+    if(editorInput && selectedId){
+      var ss=byId[selectedId];
+      if(ss){ ss.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean); }
     }
     var sites = circles.map(function(c){
       var id=c.__id, s=byId[id]||{}, ctr=c.getCenter();
@@ -417,7 +441,6 @@ window.initMap = function () {
     var edStrokeW=document.getElementById('ed-stroke-w');
     var btnAdd=document.getElementById('btn-add');
     var btnDel=document.getElementById('btn-del');
-    var editorInput=document.getElementById('editor-input');
 
     if(baseMapSel){ baseMapSel.value = map.getMapTypeId(); baseMapSel.addEventListener('change',function(){ map.setMapTypeId(baseMapSel.value); }); }
     if(toggleMarkers) toggleMarkers.addEventListener('change',function(){ var on=toggleMarkers.checked; markers.forEach(function(m){ m.setMap(on?map:null); }); });
@@ -456,13 +479,16 @@ window.initMap = function () {
         s.style.strokeWeight=v; c.setOptions({strokeWeight:v});
       });
     });
+
+    // حفظ المستلمين أثناء الكتابة
     if(editorInput) editorInput.addEventListener('input',function(){
-      if(!selectedId) return; var s=byId[selectedId];
-      s.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
-      if(recEl) recEl.textContent=renderRecipients(s.recipients);
+      if(!selectedId) return; var ss=byId[selectedId];
+      ss.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+      if(recEl) recEl.textContent=renderRecipients(ss.recipients);
       saveLocal(snapshotFromMap());
     });
 
+    // إضافة / حذف
     if(btnAdd) btnAdd.addEventListener('click',function(){
       var c=map.getCenter();
       var s={id:'s-'+Math.random().toString(36).slice(2,8),name:'موقع جديد',type:'نقطة',lat:c.lat(),lng:c.lng(),recipients:[],style:clone(DEF_STYLE)};
@@ -475,14 +501,16 @@ window.initMap = function () {
       if(idx>=0){
         for(var mi=0;mi<markers.length;mi++) if(markers[mi].__id===selectedId){ markers[mi].setMap(null); markers.splice(mi,1); break; }
         for(var ci=0;ci<circles.length;ci++) if(circles[ci].__id===selectedId){ circles[ci].setMap(null); circles.splice(ci,1); break; }
-        delete byId[selectedId]; state.sites.splice(idx,1); pinnedId=null; closeCard(); saveLocal(snapshotFromMap());
+        delete byId[selectedId]; state.sites.splice(idx,1);
+        pinnedId=null; closeCard(); saveLocal(snapshotFromMap());
       }
     });
 
+    // مشاركة قصيرة c4 + منع الكاش للجوال
     async function doShare(){
       if(selectedId && editorInput){
-        var s=byId[selectedId];
-        s.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+        var ss=byId[selectedId];
+        ss.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
       }
       var x = encC4(snapshotFromMap());
       var url = location.origin+location.pathname+'?view=share&x='+x+'&t='+(Date.now());
