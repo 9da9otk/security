@@ -3,13 +3,49 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>خريطة الأمن – دوائر 15م + كرت</title>
+  <title>خريطة الأمن – طبقات + وضع العرض</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- شريط علوي يظهر فقط في وضع العرض -->
+  <div id="sharebar" class="sharebar hidden">
+    <span>وضع العرض</span>
+    <a id="exit-share" href="./" aria-label="إنهاء العرض">إنهاء العرض</a>
+  </div>
+
+  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة" role="application"></div>
 
-  <!-- كرت المعلومات المنبثق -->
+  <!-- لوحة التحكّم (تُخفى في وضع العرض) -->
+  <aside id="panel" class="panel">
+    <h3>الطبقات</h3>
+    <label class="row">
+      <input id="toggle-markers" type="checkbox" checked />
+      <span>المواقع (Markers)</span>
+    </label>
+    <label class="row">
+      <input id="toggle-circles" type="checkbox" checked />
+      <span>دوائر الأمان (15م)</span>
+    </label>
+
+    <div class="sep"></div>
+
+    <h3>نوع الخريطة</h3>
+    <select id="basemap">
+      <option value="roadmap">طرق</option>
+      <option value="satellite">أقمار</option>
+      <option value="hybrid">هجينة</option>
+      <option value="terrain">تضاريس</option>
+    </select>
+
+    <div class="sep"></div>
+
+    <button id="share-btn" class="btn">نسخ رابط العرض</button>
+    <small class="hint">ينسخ رابطًا يتضمّن المركز والتقريب والطبقات.</small>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite">تم النسخ ✅</div>
+  </aside>
+
+  <!-- كرت المعلومات -->
   <aside id="info-card" class="card hidden" aria-live="polite">
     <button class="close" aria-label="إغلاق">×</button>
     <h3 id="site-name">—</h3>
@@ -29,10 +65,10 @@
   <!-- ملفك أولاً -->
   <script defer src="js/main.js"></script>
 
-  <!-- خرائط Google: ضع مفتاحك بدل XXXXX (بدون محارف خفية) -->
+  <!-- خرائط Google: ضع المفتاح بدل XXXXX (بدون محارف خفيّة) -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&v=weekly&callback=initMap"></script>
 
-  <!-- مراقبة فشل تحميل سكربت خرائط Google -->
+  <!-- مراقبة فشل التحميل -->
   <script>
     window.addEventListener('error', (e) => {
       try {
