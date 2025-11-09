@@ -7,26 +7,19 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- شريط يظهر فقط في وضع العرض -->
+  <!-- يظهر فقط في وضع العرض -->
   <div id="sharebar" class="sharebar hidden">
     <span>وضع العرض</span>
-    <a id="exit-share" href="./" aria-label="إنهاء العرض">إنهاء العرض</a>
+    <a id="exit-share" href="/" aria-label="إنهاء العرض">إنهاء العرض</a>
   </div>
 
-  <!-- الخريطة -->
   <div id="map" aria-label="الخريطة" role="application"></div>
 
-  <!-- لوحة التحكم (مخفاة في وضع العرض) -->
+  <!-- لوحة التحرير (لا تظهر في وضع العرض) -->
   <aside id="panel" class="panel">
     <h3>الطبقات</h3>
-    <label class="row">
-      <input id="toggle-markers" type="checkbox" checked />
-      <span>المواقع</span>
-    </label>
-    <label class="row">
-      <input id="toggle-circles" type="checkbox" checked />
-      <span>دوائر الأمان (15م)</span>
-    </label>
+    <label class="row"><input id="toggle-markers" type="checkbox" checked /><span>المواقع</span></label>
+    <label class="row"><input id="toggle-circles" type="checkbox" checked /><span>دوائر الأمان</span></label>
 
     <div class="sep"></div>
 
@@ -40,62 +33,53 @@
 
     <div class="sep"></div>
 
+    <h3>تحرير الدائرة (المحددة)</h3>
+    <div class="row"><span>نصف القطر</span><input id="ed-radius" type="range" min="5" max="200" step="1" value="15" /></div>
+    <div class="row"><span>لون التعبئة</span><input id="ed-fill" type="color" value="#60a5fa" /></div>
+    <div class="row"><span>شفافية التعبئة</span><input id="ed-fillop" type="range" min="0" max="1" step="0.01" value="0.16" /></div>
+    <div class="row"><span>لون الحدود</span><input id="ed-stroke" type="color" value="#60a5fa" /></div>
+    <div class="row"><span>سماكة الحدود</span><input id="ed-stroke-w" type="range" min="0" max="6" step="1" value="2" /></div>
+
+    <div class="row" style="justify-content:flex-end; gap:8px; margin-top:8px;">
+      <button id="btn-add" class="btn small">إضافة دائرة جديدة</button>
+      <button id="btn-del" class="btn ghost small">حذف الدائرة</button>
+    </div>
+
+    <div class="sep"></div>
+
     <button id="share-btn" class="btn">نسخ رابط العرض</button>
-    <small class="hint">ينسخ رابط عرض فقط (lat/lng/zoom/type/traffic).</small>
+    <small class="hint">يشمل المستلمين وخصائص الدوائر والمواقع.</small>
     <div id="toast" class="toast hidden" role="status" aria-live="polite">تم النسخ ✅</div>
   </aside>
 
-  <!-- زر حركة المرور (يظهر في الوضعين) -->
-  <button id="traffic-toggle" class="floating-btn" aria-pressed="false" title="إظهار/إخفاء حركة المرور">
-    حركة المرور
-  </button>
+  <!-- زر حركة المرور (متاح في الوضعين، لا يغيّر البيانات) -->
+  <button id="traffic-toggle" class="floating-btn" aria-pressed="false" title="إظهار/إخفاء حركة المرور">حركة المرور</button>
 
   <!-- كرت المعلومات -->
   <aside id="info-card" class="card hidden" aria-live="polite">
-    <!-- شعار الدرعية أعلى يمين -->
     <img class="brand" src="img/diriyah-logo.png" alt="Diriyah Company" />
     <button class="close" aria-label="إغلاق">×</button>
-
     <h3 id="site-name">—</h3>
     <p class="meta"><span id="site-type">—</span></p>
-
     <div class="row"><div>الإحداثيات</div><div id="site-coord">—</div></div>
-    <div class="row"><div>نصف القطر</div><div id="site-radius">15 م</div></div>
-    <div class="row">
-      <div>المستلمون</div>
-      <div id="site-recipients">—</div>
-    </div>
-
-    <!-- زر تحرير المستلمين (يظهر فقط خارج وضع العرض) -->
-    <div id="edit-actions" class="actions hidden">
-      <button id="edit-recipients" class="btn small">تعديل المستلمين</button>
-    </div>
+    <div class="row"><div>نصف القطر</div><div id="site-radius">—</div></div>
+    <div class="row"><div>المستلمون</div><div id="site-recipients">—</div></div>
+    <div id="edit-actions" class="actions hidden"><button id="edit-recipients" class="btn small">تعديل المستلمين</button></div>
   </aside>
 
-  <!-- صندوق التحرير (Modal) — لا يُستخدم في وضع العرض -->
+  <!-- محرر المستلمين -->
   <div id="editor" class="editor hidden" role="dialog" aria-modal="true" aria-labelledby="editor-title">
     <div class="editor-box">
       <h3 id="editor-title">تحرير المستلمين</h3>
-      <p class="hint">اكتب اسمًا في كل سطر. سيتم حفظها لهذا الموقع فقط.</p>
+      <p class="hint">اكتب اسمًا في كل سطر.</p>
       <textarea id="editor-input" rows="8" spellcheck="false" dir="auto"></textarea>
-      <div class="editor-actions">
-        <button id="editor-cancel" class="btn ghost">إلغاء</button>
-        <button id="editor-save" class="btn">حفظ</button>
-      </div>
+      <div class="editor-actions"><button id="editor-cancel" class="btn ghost">إلغاء</button><button id="editor-save" class="btn">حفظ</button></div>
     </div>
   </div>
 
   <noscript>هذه الصفحة تتطلب تفعيل JavaScript لعرض خريطة Google.</noscript>
 
   <script defer src="js/main.js"></script>
-  <!-- ضع مفتاحك بدل XXXXX -->
   <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&v=weekly&callback=initMap"></script>
-
-  <script>
-    window.addEventListener('error', (e) => {
-      try { const u = new URL(e.filename || ''); if (u.host.includes('maps.googleapis.com')) console.error('فشل تحميل سكربت خرائط Google'); } catch {}
-    }, true);
-    window.gm_authFailure = function () { console.error('فشل التوثيق مع Google Maps API'); };
-  </script>
 </body>
 </html>
