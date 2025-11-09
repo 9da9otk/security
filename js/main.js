@@ -1,11 +1,98 @@
-// ===== أدوات URL و Base64 =====
+// ===== أدوات URL =====
 function getParams(){ return new URLSearchParams(location.search); }
 function toFixed6(x){ return Number(x).toFixed ? Number(x).toFixed(6) : x; }
-function b64Encode(obj){ const s = JSON.stringify(obj); return btoa(unescape(encodeURIComponent(s))); }
-function b64Decode(str){ try { return JSON.parse(decodeURIComponent(escape(atob(str)))); } catch { return null; } }
 
-// ===== التخزين المحلي (مفتاح لإجبار التحديث عند تغيير الافتراضات) =====
+// ===== Base64 / Base64URL =====
+function b64Encode(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64Decode(b64){ return decodeURIComponent(escape(atob(b64))); }
+function toBase64Url(b64){ return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function fromBase64Url(b64url){ let b64=b64url.replace(/-/g,'+').replace(/_/g,'/'); while(b64.length%4)b64+='='; return b64; }
+
+// ===== ترميز/فك ترميز "النسخة الكلاسيكية" (للتوافق) =====
+function encodeStateClassic(obj){ return toBase64Url(b64Encode(JSON.stringify(obj))); }
+function decodeStateClassic(s){ try{ return JSON.parse(b64Decode(fromBase64Url(s))); }catch{ return null; } }
+
+// ===== ترميز مضغوط للغاية (Compact) =====
+// البنية: {v:'c1', t:0/1, s:[ [id,name,type,latE5,lngE5, [style?], recStr? ] , ... ] }
+// style = [r, fillHex, fillOp, strokeHex, strokeW] فقط إذا اختلفت عن الافتراضي
+const DEF_STYLE = { radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 };
+
+function almostEq(a,b){ return Math.abs(a-b) < 1e-9; }
+function isDefaultStyle(st){
+  return st &&
+    st.radius===DEF_STYLE.radius &&
+    st.fill===DEF_STYLE.fill &&
+    almostEq(st.fillOpacity, DEF_STYLE.fillOpacity) &&
+    st.stroke===DEF_STYLE.stroke &&
+    st.strokeWeight===DEF_STYLE.strokeWeight;
+}
+function packSite(site){
+  const latE5 = Math.round(site.lat*1e5);
+  const lngE5 = Math.round(site.lng*1e5);
+  const arr = [site.id, site.name, site.type||'', latE5, lngE5];
+  if (!isDefaultStyle(site.style)) {
+    const st = site.style || DEF_STYLE;
+    arr.push([st.radius||15, (st.fill||DEF_STYLE.fill).replace('#',''),
+              +(+st.fillOpacity).toFixed(2), (st.stroke||DEF_STYLE.stroke).replace('#',''),
+              st.strokeWeight||2]);
+  } else {
+    arr.push(0); // علامة على أن النمط افتراضي
+  }
+  const rec = (site.recipients && site.recipients.length) ? site.recipients.join('|') : '';
+  arr.push(rec);
+  return arr;
+}
+function unpackSite(a){
+  const [id,name,type,latE5,lngE5,styleOrZero,recStr=''] = a;
+  const lat = (latE5/1e5);
+  const lng = (lngE5/1e5);
+  let style = DEF_STYLE;
+  if (styleOrZero && styleOrZero !== 0) {
+    const [r,fillHex,fillOp,strokeHex,strokeW] = styleOrZero;
+    style = {
+      radius: r ?? 15,
+      fill: '#'+(fillHex||'60a5fa'),
+      fillOpacity: fillOp ?? 0.16,
+      stroke: '#'+(strokeHex||'60a5fa'),
+      strokeWeight: strokeW ?? 2
+    };
+  }
+  const recipients = recStr ? recStr.split('|') : [];
+  return { id, name, type, lat, lng, recipients, style };
+}
+function encodeStateCompact(state){
+  const payload = {
+    v:'c1',
+    t: state.traffic ? 1 : 0,
+    s: state.sites.map(packSite)
+  };
+  return toBase64Url(b64Encode(JSON.stringify(payload)));
+}
+function decodeStateCompact(s){
+  try{
+    const o = JSON.parse(b64Decode(fromBase64Url(s)));
+    if (!o || o.v!=='c1' || !Array.isArray(o.s)) return null;
+    return {
+      traffic: !!o.t,
+      sites: o.s.map(unpackSite)
+    };
+  }catch{ return null; }
+}
+
+// ===== واجهة ترميز موحّدة مع توافق خلفي =====
+function encodeShareState(state){
+  // استخدم المضغوط دائماً
+  return encodeStateCompact(state);
+}
+function decodeShareState(s){
+  // حاول المضغوط أولاً ثم الكلاسيكي
+  return decodeStateCompact(s) || decodeStateClassic(s);
+}
+
+// ===== LocalStorage (للوضع العادي فقط) =====
 const LS_KEY = 'security:state.v3';
+function loadLocal(){ try{ const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; }catch{ return null; } }
+function saveLocal(state){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch{} }
 
 // ===== الحالة الافتراضية (مواقعك) =====
 function defaultState(){
@@ -40,10 +127,6 @@ function defaultState(){
   };
 }
 
-// ===== LocalStorage (للوضع العادي فقط) =====
-function loadLocal(){ try{ const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; }catch{return null;} }
-function saveLocal(state){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch{} }
-
 // ===== التطبيق =====
 window.initMap = function () {
   const params = getParams();
@@ -53,17 +136,12 @@ window.initMap = function () {
   // الحالة: في العرض من s= فقط، وفي العادي من LocalStorage أو الافتراضي
   let state;
   if (isShare) {
-    state = params.get('s') ? (b64Decode(params.get('s')) || defaultState()) : defaultState();
+    state = params.get('s') ? (decodeShareState(params.get('s')) || defaultState()) : defaultState();
   } else {
     state = loadLocal() || defaultState();
   }
 
-  // الخريطة
-  const defaultCenter = { lat: 24.7418, lng: 46.5758 };
-  const center = { lat: parseFloat(params.get('lat')) || defaultCenter.lat, lng: parseFloat(params.get('lng')) || defaultCenter.lng };
-  const zoom = parseInt(params.get('z') || '14', 10);
-  const mapTypeId = (params.get('t') || 'roadmap');
-
+  // إنشاء الخريطة
   const mapEl = document.getElementById('map');
   const panel  = document.getElementById('panel');
   const sharebar = document.getElementById('sharebar');
@@ -72,7 +150,9 @@ window.initMap = function () {
   if (isShare) { sharebar.classList.remove('hidden'); panel?.remove(); } else { sharebar.classList.add('hidden'); }
 
   const map = new google.maps.Map(mapEl, {
-    center, zoom, mapTypeId,
+    center: { lat: 24.7418, lng: 46.5758 }, // افتراضي فقط، سيتم التعديل لاحقاً
+    zoom: 14,
+    mapTypeId: 'roadmap',
     gestureHandling: 'greedy',
     disableDefaultUI: false,
     mapTypeControl: true, zoomControl: true,
@@ -132,12 +212,10 @@ window.initMap = function () {
       document.getElementById('ed-stroke-w').value = site.style.strokeWeight;
     }
   }
-
   function closeCard(){
     card.classList.add('hidden');
     selectedId = null;
     hoverId = null;
-    // لا نغيّر pinnedId هنا؛ يُزال فقط عند الضغط على الخريطة أو اختيار موقع آخر
   }
 
   function syncFeature(site){
@@ -190,37 +268,29 @@ window.initMap = function () {
       setTimeout(() => circle.setOptions({ strokeOpacity: 0.95, fillOpacity: site.style.fillOpacity }), 240);
     }
 
-    // نقر الماركر = فتح وتثبيت
-    marker.addListener('click', () => {
+    // نقر = فتح وتثبيت
+    function pinOpen(){
       pinnedId = site.id;
       openCard(site);
       map.panTo(pos);
       flashCircle();
-    });
+    }
+    marker.addListener('click', pinOpen);
+    circle.addListener('click', pinOpen);
 
-    // نقر الدائرة = فتح وتثبيت
-    circle.addListener('click', () => {
-      pinnedId = site.id;
-      openCard(site);
-      map.panTo(pos);
-      flashCircle();
-    });
-
-    // مرور على الدائرة = فتح مؤقت (إن لم يكن هناك تثبيت)
+    // مرور = فتح مؤقت إذا مافيه تثبيت
     circle.addListener('mouseover', () => {
-      if (pinnedId) return;      // تجاهل الهوفر إذا في تثبيت
+      if (pinnedId) return;
       hoverId = site.id;
       openCard(site);
       flashCircle();
     });
-
-    // خروج المؤشر = إخفاء إذا لم تكن مثبّتة
     circle.addListener('mouseout', () => {
-      if (pinnedId) return;              // لو مثبّتة لا نخفي
+      if (pinnedId) return;
       if (hoverId === site.id) closeCard();
     });
 
-    // سحب الماركر (عادي)
+    // سحب الماركر (تحريك الدائرة) – في الوضع العادي
     marker.addListener('dragend', (e) => {
       if (isShare) return;
       site.lat = e.latLng.lat(); site.lng = e.latLng.lng();
@@ -228,8 +298,14 @@ window.initMap = function () {
     });
   }
 
-  // أنشئ المواقع
-  state.sites.forEach(createFeature);
+  // أنشئ المواقع + حدود الخريطة
+  const bounds = new google.maps.LatLngBounds();
+  state.sites.forEach(s => { createFeature(s); bounds.extend({lat:s.lat,lng:s.lng}); });
+
+  // في وضع العرض: قلّص الرابط وأزِل lat/lng/z/t، لذا نلائم تلقائياً
+  if (isShare && !bounds.isEmpty()) {
+    map.fitBounds(bounds, 60);
+  }
 
   // ===== أدوات التحرير (للوضع العادي فقط) =====
   if (!isShare) {
@@ -267,20 +343,25 @@ window.initMap = function () {
       const id = 'site-' + Math.random().toString(36).slice(2,8);
       const site = { id, name:'موقع جديد', type:'نقطة', lat:c.lat(), lng:c.lng(),
         recipients:[], style:{ radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 } };
-      state.sites.push(site); createFeature(site); pinnedId = site.id; openCard(site); saveLocal(state);
+      state.sites.push(site);
+      createFeature(site);
+      // حدث الحدود
+      bounds.extend({lat:site.lat,lng:site.lng});
+      pinnedId = site.id; openCard(site);
+      saveLocal(state);
     });
     btnDel.addEventListener('click', () => {
       if (!selectedId) return;
       const idx = state.sites.findIndex(s => s.id === selectedId);
       if (idx >= 0) {
+        // إزالة الطبقات من الخريطة
         const mIdx = markers.findIndex(m => m.__id === selectedId);
         const cIdx = circles.findIndex(c => c.__id === selectedId);
         if (mIdx >= 0) { markers[mIdx].setMap(null); markers.splice(mIdx,1); }
         if (cIdx >= 0) { circles[cIdx].setMap(null); circles.splice(cIdx,1); }
         delete byId[selectedId];
         state.sites.splice(idx,1);
-        pinnedId = null;
-        closeCard();
+        pinnedId = null; closeCard();
         saveLocal(state);
       }
     });
@@ -298,23 +379,19 @@ window.initMap = function () {
       syncFeature(site); editor.classList.add('hidden'); saveLocal(state);
     });
 
-    // توليد رابط العرض: تضمين الحالة كاملة في s=
+    // ===== توليد رابط المشاركة القصير =====
     shareBtn.addEventListener('click', async () => {
-      const c = map.getCenter(); const z = map.getZoom(); const t = map.getMapTypeId();
       const payload = { traffic: trafficOn, sites: state.sites };
-      const s = encodeURIComponent(b64Encode(payload));
-      const url = `${location.origin}${location.pathname}?view=share&lat=${toFixed6(c.lat())}&lng=${toFixed6(c.lng())}&z=${z}&t=${encodeURIComponent(t)}&s=${s}`;
-      try { await navigator.clipboard.writeText(url); } catch {}
+      const s = encodeShareState(payload);   // مضغوط Base64URL
+      const url = `${location.origin}${location.pathname}?view=share&s=${s}`; // بدون lat/lng/z/t
+      try{ await navigator.clipboard.writeText(url); }catch{}
       toast.textContent = 'تم النسخ ✅'; toast.classList.remove('hidden');
       setTimeout(()=>toast.classList.add('hidden'), 2000);
     });
   }
 
   // الضغط على الخريطة = فك التثبيت وإخفاء الكرت
-  map.addListener('click', () => {
-    pinnedId = null;
-    closeCard();
-  });
+  map.addListener('click', () => { pinnedId = null; closeCard(); });
 
-  console.log(isShare ? 'Readonly Share View 🔒' : 'Editor View ✅');
+  console.log(isShare ? 'Readonly Share View 🔒 (compact link)' : 'Editor View ✅');
 };
