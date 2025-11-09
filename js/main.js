@@ -157,6 +157,8 @@ window.initMap = function () {
   function createFeature(site){
     byId[site.id] = site;
     const pos = { lat: site.lat, lng: site.lng };
+
+    // ماركر (للاستخدام المعتاد)
     const marker = new google.maps.Marker({
       position: pos, map, title: site.name,
       icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor:'#e11d48', fillOpacity:1, strokeColor:'#ffffff', strokeWeight:2 },
@@ -165,21 +167,35 @@ window.initMap = function () {
     marker.__id = site.id;
     markers.push(marker);
 
+    // دائرة قابلة للنقر والتمرير لفتح الكرت
     const circle = new google.maps.Circle({
       map, center: pos, radius: site.style.radius,
       strokeColor: site.style.stroke, strokeOpacity: 0.95, strokeWeight: site.style.strokeWeight,
-      fillColor: site.style.fill, fillOpacity: site.style.fillOpacity, clickable: false, zIndex: 1
+      fillColor: site.style.fill, fillOpacity: site.style.fillOpacity,
+      clickable: true,          // ← مهم: يسمح بالنقر على أي مكان في الدائرة
+      cursor: 'pointer',        // مؤشر يد عند المرور
+      zIndex: 1
     });
     circle.__id = site.id;
     circles.push(circle);
 
-    marker.addListener('click', () => {
-      openCard(site);
-      map.panTo(pos);
-      circle.setOptions({ strokeOpacity: 1, fillOpacity: Math.min(site.style.fillOpacity+0.06,1) });
+    // نفس سلوك فتح الكرت على الماركر
+    function flashCircle(){
+      circle.setOptions({ strokeOpacity: 1, fillOpacity: Math.min(site.style.fillOpacity+0.06, 1) });
       setTimeout(() => circle.setOptions({ strokeOpacity: 0.95, fillOpacity: site.style.fillOpacity }), 240);
-    });
+    }
 
+    // فتح الكرت: بالنقر على الماركر
+    marker.addListener('click', () => { openCard(site); map.panTo(pos); flashCircle(); });
+
+    // فتح الكرت: بالنقر على أي مكان داخل الدائرة
+    circle.addListener('click', () => { openCard(site); map.panTo(pos); flashCircle(); });
+
+    // فتح الكرت بمجرد المرور (اختياري لطيف)
+    circle.addListener('mouseover', () => { openCard(site); flashCircle(); });
+    circle.addListener('mouseout',  () => { circle.setOptions({ strokeOpacity: 0.95, fillOpacity: site.style.fillOpacity }); });
+
+    // سحب الماركر (تحريك الدائرة) – في الوضع العادي فقط
     marker.addListener('dragend', (e) => {
       if (isShare) return;
       site.lat = e.latLng.lat(); site.lng = e.latLng.lng();
