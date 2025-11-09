@@ -1,33 +1,34 @@
 /* =======================
-   خريطة الأمن – main.js
+   خريطة الأمن – main.js (stable, no optional chaining / nullish)
    ======================= */
 
 /* ---------- Helpers ---------- */
 function toFixed6(x){ return Number(x).toFixed ? Number(x).toFixed(6) : x; }
 function qs(){ return new URLSearchParams(location.search); }
+function nz(v, d){ return (v===undefined || v===null) ? d : v; }   // null/undef -> default
 const DEF_STYLE = { radius:15, fill:'#60a5fa', fillOpacity:0.16, stroke:'#60a5fa', strokeWeight:2 };
 
 /* ---------- Base64URL (للصيغة c2 القديمة) ---------- */
 function b64e(s){ return btoa(unescape(encodeURIComponent(s))); }
 function b64d(s){ return decodeURIComponent(escape(atob(s))); }
 function toUrl(b){ return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-function fromUrl(u){ let b=u.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4)b+='='; return b; }
+function fromUrl(u){ var b=u.replace(/-/g,'+').replace(/_/g,'/'); while(b.length%4)b+='='; return b; }
 
-/* ---------- LZ-String (URI-safe بدون +) ---------- */
-const LZ = (function(){
+/* ---------- LZ-String (URI-safe) ---------- */
+var LZ=(function(){
   function o(r){return String.fromCharCode(r);}
   function compressToEncodedURIComponent(input){
     if(input==null) return "";
-    return _compress(input, 6, a => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".charAt(a));
+    return _compress(input,6,function(a){return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$".charAt(a);});
   }
-  function _compress(uncompressed, bitsPerChar, getCharFromInt){
+  function _compress(uncompressed,bitsPerChar,getCharFromInt){
     if(uncompressed==null) return "";
-    let i,value,dict={},dictCreate={},c="",wc="",w="",enlargeIn=2,dictSize=3,numBits=2,out=[],outVal=0,outPos=0;
+    var i,value,dict={},dictCreate={},c="",wc="",w="",enlargeIn=2,dictSize=3,numBits=2,out=[],outVal=0,outPos=0;
     for(i=0;i<uncompressed.length;i++){
-      c = uncompressed.charAt(i);
+      c=uncompressed.charAt(i);
       if(!Object.prototype.hasOwnProperty.call(dict,c)){ dict[c]=dictSize++; dictCreate[c]=true; }
-      wc = w + c;
-      if(Object.prototype.hasOwnProperty.call(dict,wc)){ w = wc; }
+      wc=w+c;
+      if(Object.prototype.hasOwnProperty.call(dict,wc)){ w=wc; }
       else{
         if(Object.prototype.hasOwnProperty.call(dictCreate,w)){
           if(w.charCodeAt(0)<256){
@@ -77,30 +78,29 @@ const LZ = (function(){
   }
   function decompressFromEncodedURIComponent(input){
     if(input==null) return "";
-    input = decodeURIComponent(input);
+    input=decodeURIComponent(input);
     if(input=="") return null;
-    return _decompress(input.length, 32, i => input.charCodeAt(i));
+    return _decompress(input.length,32,function(i){return input.charCodeAt(i);});
   }
-  function _decompress(length, resetValue, getNextValue){
-    const dictionary=[], result=[], data={val:getNextValue(0), position:resetValue, index:1};
-    let enlargeIn=4, dictSize=4, numBits=3, entry="", w, c, bits, resb, maxpower, power;
-    for(let i=0;i<3;i++) dictionary[i]=i;
+  function _decompress(length,resetValue,getNextValue){
+    var dictionary=[],result=[],data={val:getNextValue(0),position:resetValue,index:1};
+    var enlargeIn=4,dictSize=4,numBits=3,entry="",w,c,bits,resb,maxpower,power;
+    for(var i=0;i<3;i++) dictionary[i]=i;
     function readBits(n){
       bits=0; maxpower=Math.pow(2,n); power=1;
       while(power!=maxpower){
-        resb = data.val & data.position;
-        data.position >>= 1;
-        if(data.position==0){ data.position=resetValue; data.val = getNextValue(data.index++); }
-        bits |= (resb>0 ? 1:0) * power; power <<= 1;
+        resb=data.val & data.position; data.position>>=1;
+        if(data.position==0){ data.position=resetValue; data.val=getNextValue(data.index++); }
+        bits |= (resb>0?1:0)*power; power<<=1;
       }
       return bits;
     }
-    let next = readBits(2);
+    var next=readBits(2);
     switch(next){ case 0: c=o(readBits(8)); break; case 1: c=o(readBits(16)); break; case 2: return ""; }
     dictionary[3]=w=c; result.push(c);
     while(true){
       if(data.index>length) return "";
-      const cc=readBits(numBits); let code=cc;
+      var cc=readBits(numBits); var code=cc;
       if(code===0){ c=o(readBits(8)); dictionary[dictSize++]=c; code=dictSize-1; enlargeIn--; }
       else if(code===1){ c=o(readBits(16)); dictionary[dictSize++]=c; code=dictSize-1; enlargeIn--; }
       else if(code===2){ return result.join(''); }
@@ -112,11 +112,11 @@ const LZ = (function(){
       w=entry; if(enlargeIn==0){ enlargeIn=Math.pow(2,numBits); numBits++; }
     }
   }
-  return { cURI: compressToEncodedURIComponent, dURI: decompressFromEncodedURIComponent };
+  return { cURI:compressToEncodedURIComponent, dURI:decompressFromEncodedURIComponent };
 })();
 
 /* ---------- المواقع الافتراضية ---------- */
-const DEFAULT_SITES = [
+var DEFAULT_SITES = [
   ['بوابة سمحان',24.742132284177778,46.569503913805825,'بوابة'],
   ['منطقة سمحان',24.74091335108621,46.571891407130025,'منطقة'],
   ['دوار البجيري',24.737521801476476,46.57406918772067,'دوار'],
@@ -139,383 +139,363 @@ const DEFAULT_SITES = [
 ];
 
 function defaultState(){
-  return {
-    traffic:false,
-    sites: DEFAULT_SITES.map(([name,lat,lng,type]) => ({
-      id:'s-'+Math.random().toString(36).slice(2,8),
-      name,type,lat,lng,recipients:[], style:{...DEF_STYLE}
-    }))
-  };
+  var s = DEFAULT_SITES.map(function(x){
+    return { id:'s-'+Math.random().toString(36).slice(2,8), name:x[0], lat:x[1], lng:x[2], type:x[3], recipients:[], style:clone(DEF_STYLE) };
+  });
+  return { traffic:false, sites:s };
 }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
 
-/* ---------- الصيغ (c2/c3 قديمتان – c4 جديدة) ---------- */
-const nToB36 = n => Math.round(n).toString(36);
-const b36ToN = s => parseInt(s,36);
+/* ---------- c2/c3/c4 ترميز المشاركة ---------- */
+var nToB36=function(n){ return Math.round(n).toString(36); };
+var b36ToN=function(s){ return parseInt(s,36); };
+
 function packSiteC2(s){
-  const latE5=Math.round(s.lat*1e5), lngE5=Math.round(s.lng*1e5);
-  const st=s.style||DEF_STYLE;
-  const def = st.radius===DEF_STYLE.radius &&
-              (st.fill||'').toLowerCase()===(DEF_STYLE.fill).toLowerCase() &&
-              (+st.fillOpacity)===(DEF_STYLE.fillOpacity) &&
-              (st.stroke||'').toLowerCase()===(DEF_STYLE.stroke).toLowerCase() &&
-              (st.strokeWeight||2)===(DEF_STYLE.strokeWeight);
+  var latE5=Math.round(s.lat*1e5), lngE5=Math.round(s.lng*1e5);
+  var st=s.style||DEF_STYLE;
+  var def = st.radius===DEF_STYLE.radius &&
+            String(st.fill).toLowerCase()===String(DEF_STYLE.fill).toLowerCase() &&
+            +st.fillOpacity===DEF_STYLE.fillOpacity &&
+            String(st.stroke).toLowerCase()===String(DEF_STYLE.stroke).toLowerCase() &&
+            (st.strokeWeight||2)===DEF_STYLE.strokeWeight;
   return [ s.name, s.type||'', nToB36(latE5), nToB36(lngE5),
-           def?0:[st.radius||15,(st.fill||DEF_STYLE.fill).replace('#','').toLowerCase(),
-           +(+st.fillOpacity).toFixed(2),(st.stroke||DEF_STYLE.stroke).replace('#','').toLowerCase(),st.strokeWeight||2],
+           def?0:[st.radius||15,String(st.fill||DEF_STYLE.fill).replace('#','').toLowerCase(),
+                  +( +st.fillOpacity ).toFixed(2), String(st.stroke||DEF_STYLE.stroke).replace('#','').toLowerCase(), st.strokeWeight||2],
            (s.recipients&&s.recipients.length)?s.recipients.join('|'):'' ];
 }
 function unpackSiteC2(a){
-  const [name,type,latB,lngB,styleOr0,recStr=''] = a;
-  const lat=b36ToN(latB)/1e5, lng=b36ToN(lngB)/1e5;
-  let style={...DEF_STYLE};
+  var name=a[0],type=a[1],latB=a[2],lngB=a[3],styleOr0=a[4],recStr=a[5]||'';
+  var lat=b36ToN(latB)/1e5, lng=b36ToN(lngB)/1e5;
+  var style=clone(DEF_STYLE);
   if(styleOr0 && styleOr0!==0){
-    const [r,fillHex,fop,strokeHex,sw]=styleOr0;
-    style={radius:r??15, fill:'#'+(fillHex||'60a5fa'), fillOpacity:fop??0.16, stroke:'#'+(strokeHex||'60a5fa'), strokeWeight:sw??2};
+    var r=styleOr0[0], fillHex=styleOr0[1], fop=styleOr0[2], strokeHex=styleOr0[3], sw=styleOr0[4];
+    style={radius:nz(r,15), fill:'#'+(fillHex||'60a5fa'), fillOpacity:nz(fop,0.16), stroke:'#'+(strokeHex||'60a5fa'), strokeWeight:nz(sw,2)};
   }
-  return { id:'s-'+Math.random().toString(36).slice(2,8), name,type,lat,lng,recipients:recStr?recStr.split('|'):[], style };
+  return { id:'s-'+Math.random().toString(36).slice(2,8), name:name, type:type, lat:lat, lng:lng, recipients:recStr?recStr.split('|'):[], style:style };
 }
 function encC2(state){ return toUrl(b64e(JSON.stringify({v:'c2', t:state.traffic?1:0, s:state.sites.map(packSiteC2)}))); }
-function decC2(s){ try{ const o=JSON.parse(b64d(fromUrl(s))); if(o&&o.v==='c2'&&Array.isArray(o.s)) return {traffic:!!o.t, sites:o.s.map(unpackSiteC2)};}catch{} return null; }
-function encC3(state){ const c2json=JSON.stringify({v:'c2',t:state.traffic?1:0,s:state.sites.map(packSiteC2)}); return 'c3.'+LZ.cURI(c2json); }
-function decC3(x){ try{ const raw=x.startsWith('c3.')?x.slice(3):x; const o=JSON.parse(LZ.dURI(raw)); if(o&&o.v==='c2'&&Array.isArray(o.s)) return {traffic:!!o.t, sites:o.s.map(unpackSiteC2)};}catch{} return null; }
+function decC2(s){ try{ var o=JSON.parse(b64d(fromUrl(s))); if(o&&o.v==='c2'&&Array.isArray(o.s)) return {traffic:!!o.t, sites:o.s.map(unpackSiteC2)}; }catch(e){} return null; }
+function encC3(state){ var c2=JSON.stringify({v:'c2',t:state.traffic?1:0,s:state.sites.map(packSiteC2)}); return 'c3.'+LZ.cURI(c2); }
+function decC3(x){ try{ var raw=x.indexOf('c3.')===0?x.slice(3):x; var o=JSON.parse(LZ.dURI(raw)); if(o&&o.v==='c2'&&Array.isArray(o.s)) return {traffic:!!o.t, sites:o.s.map(unpackSiteC2)}; }catch(e){} return null; }
 
-/* c4: Delta من الافتراضي (قصير جدًا) */
-function toHexNoHash(c){ c=(c||'').toLowerCase(); return c.startsWith('#')?c.slice(1):c; }
+/* c4: Delta قصيرة جدًا */
+function toHexNoHash(c){ c=(c||'').toLowerCase(); return c.charAt(0)==='#'?c.slice(1):c; }
 function fromHexNoHash(h){ return '#'+(h||'60a5fa'); }
 function buildIndexByNameLatLng(){
-  const map = new Map();
-  DEFAULT_SITES.forEach(([name,lat,lng], idx)=> map.set(`${name}|${lat.toFixed(6)}|${lng.toFixed(6)}`, idx));
-  return map;
+  var map={}; for(var i=0;i<DEFAULT_SITES.length;i++){
+    var it=DEFAULT_SITES[i]; map[it[0]+'|'+it[1].toFixed(6)+'|'+it[2].toFixed(6)]=i;
+  } return map;
 }
-const DEF_INDEX = buildIndexByNameLatLng();
+var DEF_INDEX=buildIndexByNameLatLng();
 function encC4(state){
-  const d=[];
-  state.sites.forEach(s=>{
-    const key = `${s.name}|${s.lat.toFixed(6)}|${s.lng.toFixed(6)}`;
-    if(!DEF_INDEX.has(key)){
+  var d=[];
+  state.sites.forEach(function(s){
+    var key=s.name+'|'+s.lat.toFixed(6)+'|'+s.lng.toFixed(6);
+    if(DEF_INDEX[key]===undefined){
       d.push([-1, +s.lat.toFixed(5), +s.lng.toFixed(5), s.name, s.type||'',
-              s.recipients&&s.recipients.length?s.recipients.join('|'):'',
+              (s.recipients&&s.recipients.length)?s.recipients.join('|'):'',
               s.style.radius!==DEF_STYLE.radius?s.style.radius:undefined,
               s.style.fill!==DEF_STYLE.fill?toHexNoHash(s.style.fill):undefined,
-              s.style.fillOpacity!==DEF_STYLE.fillOpacity?+s.style.fillOpacity.toFixed(2):undefined,
+              s.style.fillOpacity!==DEF_STYLE.fillOpacity?+Number(s.style.fillOpacity).toFixed(2):undefined,
               s.style.stroke!==DEF_STYLE.stroke?toHexNoHash(s.style.stroke):undefined,
-              s.style.strokeWeight!==DEF_STYLE.strokeWeight?s.style.strokeWeight:undefined
-      ]);
+              s.style.strokeWeight!==DEF_STYLE.strokeWeight?s.style.strokeWeight:undefined]);
       return;
     }
-    const i = DEF_INDEX.get(key);
-    const row=[i];
-    const st=s.style||DEF_STYLE;
+    var i=DEF_INDEX[key]; var row=[i], st=s.style||DEF_STYLE;
     if(st.radius!==DEF_STYLE.radius) row[1]=st.radius;
-    if((st.fill||'').toLowerCase()!==DEF_STYLE.fill.toLowerCase()) row[2]=toHexNoHash(st.fill);
-    if(+st.fillOpacity!==DEF_STYLE.fillOpacity) row[3]=+st.fillOpacity.toFixed(2);
-    if((st.stroke||'').toLowerCase()!==DEF_STYLE.stroke.toLowerCase()) row[4]=toHexNoHash(st.stroke);
+    if(String(st.fill).toLowerCase()!==String(DEF_STYLE.fill).toLowerCase()) row[2]=toHexNoHash(st.fill);
+    if(+st.fillOpacity!==DEF_STYLE.fillOpacity) row[3]=+Number(st.fillOpacity).toFixed(2);
+    if(String(st.stroke).toLowerCase()!==String(DEF_STYLE.stroke).toLowerCase()) row[4]=toHexNoHash(st.stroke);
     if((st.strokeWeight||2)!==DEF_STYLE.strokeWeight) row[5]=st.strokeWeight;
     if(s.recipients && s.recipients.length) row[6]=s.recipients.join('|');
     d.push(row);
   });
-  return 'c4.' + LZ.cURI(JSON.stringify({v:'c4', t:state.traffic?1:0, d}));
+  return 'c4.'+LZ.cURI(JSON.stringify({v:'c4', t:state.traffic?1:0, d:d}));
 }
 function decC4(x){
   try{
-    const raw=x.startsWith('c4.')?x.slice(3):x;
-    const o=JSON.parse(LZ.dURI(raw));
-    if(!(o&&o.v==='c4'&&Array.isArray(o.d))) return null;
-    const base=defaultState(); const arr=base.sites;
-    o.d.forEach(row=>{
-      const i=row[0];
+    var raw=x.indexOf('c4.')===0?x.slice(3):x;
+    var o=JSON.parse(LZ.dURI(raw)); if(!(o&&o.v==='c4'&&Array.isArray(o.d))) return null;
+    var base=defaultState(); var arr=base.sites;
+    o.d.forEach(function(row){
+      var i=row[0];
       if(i===-1){
-        const lat=row[1], lng=row[2], name=row[3]||'موقع', type=row[4]||'نقطة';
-        const rec=row[5]?String(row[5]).split('|').filter(Boolean):[];
-        const r=row[6]??DEF_STYLE.radius;
-        const f=row[7]?fromHexNoHash(row[7]):DEF_STYLE.fill;
-        const p=row[8]??DEF_STYLE.fillOpacity;
-        const s=row[9]?fromHexNoHash(row[9]):DEF_STYLE.stroke;
-        const w=row[10]??DEF_STYLE.strokeWeight;
-        arr.push({ id:'s-'+Math.random().toString(36).slice(2,8), name,type,lat,lng,recipients:rec,
+        var lat=row[1],lng=row[2],name=row[3]||'موقع',type=row[4]||'نقطة';
+        var rec=row[5]?String(row[5]).split('|').filter(Boolean):[];
+        var r=nz(row[6],DEF_STYLE.radius);
+        var f=row[7]?fromHexNoHash(row[7]):DEF_STYLE.fill;
+        var p=nz(row[8],DEF_STYLE.fillOpacity);
+        var s=row[9]?fromHexNoHash(row[9]):DEF_STYLE.stroke;
+        var w=nz(row[10],DEF_STYLE.strokeWeight);
+        arr.push({ id:'s-'+Math.random().toString(36).slice(2,8), name:name, type:type, lat:lat, lng:lng, recipients:rec,
                    style:{radius:r,fill:f,fillOpacity:p,stroke:s,strokeWeight:w}});
         return;
       }
       if(i<0||i>=arr.length) return;
-      const site=arr[i];
-      const r=row[1], f=row[2], p=row[3], s=row[4], w=row[5], rec=row[6];
-      if(r!==undefined) site.style.radius=r;
-      if(f!==undefined) site.style.fill=fromHexNoHash(f);
-      if(p!==undefined) site.style.fillOpacity=p;
-      if(s!==undefined) site.style.stroke=fromHexNoHash(s);
-      if(w!==undefined) site.style.strokeWeight=w;
-      if(rec!==undefined) site.recipients=String(rec).split('|').filter(Boolean);
+      var site=arr[i];
+      var r2=row[1], f2=row[2], p2=row[3], s2=row[4], w2=row[5], rec2=row[6];
+      if(r2!==undefined) site.style.radius=r2;
+      if(f2!==undefined) site.style.fill=fromHexNoHash(f2);
+      if(p2!==undefined) site.style.fillOpacity=p2;
+      if(s2!==undefined) site.style.stroke=fromHexNoHash(s2);
+      if(w2!==undefined) site.style.strokeWeight=w2;
+      if(rec2!==undefined) site.recipients=String(rec2).split('|').filter(Boolean);
     });
-    return { traffic:!!o.t, sites:arr };
-  }catch{ return null; }
+    return { traffic: !!o.t, sites: arr };
+  }catch(e){ return null; }
 }
 
 /* ---------- التخزين ---------- */
-const LS_KEY='security:state.v3';
-const loadLocal=()=>{ try{const s=localStorage.getItem(LS_KEY);return s?JSON.parse(s):null;}catch{return null;} };
-const saveLocal=s=>{ try{localStorage.setItem(LS_KEY,JSON.stringify(s));}catch{} };
+var LS_KEY='security:state.v3';
+function loadLocal(){ try{var s=localStorage.getItem(LS_KEY); return s?JSON.parse(s):null;}catch(e){return null;} }
+function saveLocal(v){ try{localStorage.setItem(LS_KEY,JSON.stringify(v));}catch(e){} }
 
 /* =====================  التطبيق  ===================== */
 window.initMap = function () {
-  const sp = qs();
-  const isShare = (sp.get('view')||'').toLowerCase()==='share' || !!sp.get('x') || !!sp.get('s');
-  if (isShare){ document.body.classList.add('share'); document.getElementById('panel')?.remove(); document.getElementById('editor')?.remove(); document.getElementById('edit-actions')?.remove(); }
-
-  let state = defaultState();
+  var sp = qs();
+  var isShare = (String(sp.get('view')||'').toLowerCase()==='share') || !!sp.get('x') || !!sp.get('s');
   if (isShare){
-    if (sp.get('x')) state = decC4(sp.get('x')) || decC3(sp.get('x')) || state; // x: c4 ثم c3
-    else if (sp.get('s')) state = decC3(sp.get('s')) || decC2(sp.get('s')) || state; // s: c3 ثم c2
+    var p=document.getElementById('panel'); if(p) p.remove();
+    var ed=document.getElementById('editor'); if(ed) ed.remove();
+    var ea=document.getElementById('edit-actions'); if(ea) ea.remove();
+    document.body.classList.add('share');
+  }
+
+  var state = defaultState();
+  if (isShare){
+    if (sp.get('x')) state = decC4(sp.get('x')) || decC3(sp.get('x')) || state;
+    else if (sp.get('s')) state = decC3(sp.get('s')) || decC2(sp.get('s')) || state;
   } else {
     state = loadLocal() || state;
   }
 
-  const map = new google.maps.Map(document.getElementById('map'), {
+  var map = new google.maps.Map(document.getElementById('map'), {
     center:{lat:24.7418,lng:46.5758}, zoom:14, mapTypeId:'roadmap',
     gestureHandling:'greedy', disableDefaultUI:false, mapTypeControl:true, zoomControl:true,
     streetViewControl:false, fullscreenControl:true
   });
 
   /* حركة المرور */
-  const trafficLayer = new google.maps.TrafficLayer();
-  let trafficOn = !!state.traffic;
-  const trafficBtn = document.getElementById('traffic-toggle');
-  function setTraffic(on){ trafficOn=!!on; trafficBtn?.setAttribute('aria-pressed', on?'true':'false'); trafficLayer.setMap(on?map:null); }
+  var trafficLayer = new google.maps.TrafficLayer();
+  var trafficBtn=document.getElementById('traffic-toggle');
+  var trafficOn = !!state.traffic;
+  function setTraffic(on){ trafficOn=!!on; if(trafficBtn) trafficBtn.setAttribute('aria-pressed', on?'true':'false'); trafficLayer.setMap(on?map:null); }
   setTraffic(trafficOn);
-  trafficBtn?.addEventListener('click',()=>setTraffic(!trafficOn));
+  if(trafficBtn) trafficBtn.addEventListener('click',function(){ setTraffic(!trafficOn); });
 
   /* كرت المعلومات */
-  const card=document.getElementById('info-card');
-  const nameEl=document.getElementById('site-name');
-  const typeEl=document.getElementById('site-type');
-  const coordEl=document.getElementById('site-coord');
-  const radiusEl=document.getElementById('site-radius');
-  const recEl=document.getElementById('site-recipients');
-  const editActions=document.getElementById('edit-actions');
-  card.querySelector('.close').addEventListener('click',()=>{ pinnedId=null; closeCard(); });
+  var card=document.getElementById('info-card');
+  var nameEl=document.getElementById('site-name');
+  var typeEl=document.getElementById('site-type');
+  var coordEl=document.getElementById('site-coord');
+  var radiusEl=document.getElementById('site-radius');
+  var recEl=document.getElementById('site-recipients');
+  var editActions=document.getElementById('edit-actions');
+  var closeBtn = card ? card.querySelector('.close') : null;
+  if(closeBtn) closeBtn.addEventListener('click',function(){ pinnedId=null; closeCard(); });
 
-  const markers=[], circles=[], byId=Object.create(null);
-  let selectedId=null, pinnedId=null, hoverId=null;
+  var markers=[], circles=[], byId={};
+  var selectedId=null, pinnedId=null, hoverId=null;
 
-  function renderRecipients(a){return (a&&a.length)?a.join('، '):'—';}
+  function renderRecipients(a){ return (a&&a.length)?a.join('، '):'—'; }
   function openCard(s){
     selectedId=s.id;
-    nameEl.textContent=s.name||'—';
-    typeEl.textContent=s.type||'—';
-    coordEl.textContent=`${toFixed6(s.lat)}, ${toFixed6(s.lng)}`;
-    radiusEl.textContent=`${s.style.radius} م`;
-    recEl.textContent=renderRecipients(s.recipients);
-    if(!isShare) editActions.classList.remove('hidden'); else editActions?.classList.add('hidden');
-    card.classList.remove('hidden');
+    if(nameEl) nameEl.textContent=s.name||'—';
+    if(typeEl) typeEl.textContent=s.type||'—';
+    if(coordEl) coordEl.textContent=toFixed6(s.lat)+', '+toFixed6(s.lng);
+    if(radiusEl) radiusEl.textContent=(s.style.radius)+' م';
+    if(recEl) recEl.textContent=renderRecipients(s.recipients);
+    if(editActions){ if(!isShare) editActions.classList.remove('hidden'); else editActions.classList.add('hidden'); }
+    if(card) card.classList.remove('hidden');
+
     if(!isShare){
-      document.getElementById('ed-radius').value=s.style.radius;
-      document.getElementById('ed-fill').value=s.style.fill;
-      document.getElementById('ed-fillop').value=s.style.fillOpacity;
-      document.getElementById('ed-stroke').value=s.style.stroke;
-      document.getElementById('ed-stroke-w').value=s.style.strokeWeight;
-      document.getElementById('editor-input').value=(s.recipients||[]).join('\n');
+      var er=document.getElementById('ed-radius'); if(er) er.value=s.style.radius;
+      var ef=document.getElementById('ed-fill'); if(ef) ef.value=s.style.fill;
+      var epo=document.getElementById('ed-fillop'); if(epo) epo.value=s.style.fillOpacity;
+      var es=document.getElementById('ed-stroke'); if(es) es.value=s.style.stroke;
+      var esw=document.getElementById('ed-stroke-w'); if(esw) esw.value=s.style.strokeWeight;
+      var ei=document.getElementById('editor-input'); if(ei) ei.value=(s.recipients||[]).join('\n');
     }
   }
-  function closeCard(){ card.classList.add('hidden'); selectedId=null; hoverId=null; }
+  function closeCard(){ if(card) card.classList.add('hidden'); selectedId=null; hoverId=null; }
 
-  const getCircleById = id => circles.find(c => c.__id === id);
-  const normHex = c => {c=(c||'#60a5fa').toLowerCase(); return c.startsWith('#')?c:('#'+c);};
+  function getCircleById(id){ for(var i=0;i<circles.length;i++){ if(circles[i].__id===id) return circles[i]; } return null; }
+  function normHex(c){ c=String(c||'#60a5fa').toLowerCase(); return c.charAt(0)==='#'?c:'#'+c; }
 
   function snapshotFromMap(){
-    const ed=document.getElementById('editor');
-    if(ed && !ed.classList.contains('hidden') && typeof selectedId==='string'){
-      const s=byId[selectedId];
-      if(s){ s.recipients=(document.getElementById('editor-input').value||'').split('\n').map(x=>x.trim()).filter(Boolean); }
+    var ei=document.getElementById('editor-input');
+    if(ei && selectedId){
+      var s=byId[selectedId];
+      if(s){ s.recipients=String(ei.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean); }
     }
-    const sites = circles.map(c=>{
-      const id=c.__id, s=byId[id]||{}, ctr=c.getCenter();
-      return { id, name:s.name||'', type:s.type||'',
+    var sites = circles.map(function(c){
+      var id=c.__id, s=byId[id]||{}, ctr=c.getCenter();
+      return { id:id, name:s.name||'', type:s.type||'',
         lat:+ctr.lat(), lng:+ctr.lng(),
         recipients:Array.isArray(s.recipients)?s.recipients.slice():[],
         style:{ radius:+c.getRadius(), fill:normHex(c.get('fillColor')), fillOpacity:+c.get('fillOpacity'),
                 stroke:normHex(c.get('strokeColor')), strokeWeight:+(c.get('strokeWeight')||2) } };
     });
-    return { traffic:trafficOn, sites };
+    return { traffic:trafficOn, sites:sites };
   }
 
   function syncFeature(s){
-    const m=markers.find(x=>x.__id===s.id), c=getCircleById(s.id);
+    var m=null, c=null, i;
+    for(i=0;i<markers.length;i++) if(markers[i].__id===s.id){ m=markers[i]; break; }
+    for(i=0;i<circles.length;i++) if(circles[i].__id===s.id){ c=circles[i]; break; }
     if(!m||!c) return;
-    const pos={lat:s.lat,lng:s.lng};
+    var pos={lat:s.lat,lng:s.lng};
     m.setPosition(pos); c.setCenter(pos);
     c.setOptions({ radius:s.style.radius, fillColor:s.style.fill, fillOpacity:s.style.fillOpacity,
                    strokeColor:s.style.stroke, strokeWeight:s.style.strokeWeight });
     if(selectedId===s.id){
-      coordEl.textContent=`${toFixed6(s.lat)}, ${toFixed6(s.lng)}`;
-      radiusEl.textContent=`${s.style.radius} م`;
-      recEl.textContent=renderRecipients(s.recipients);
+      if(coordEl) coordEl.textContent=toFixed6(s.lat)+', '+toFixed6(s.lng);
+      if(radiusEl) radiusEl.textContent=(s.style.radius)+' م';
+      if(recEl) recEl.textContent=renderRecipients(s.recipients);
     }
     if(!isShare) saveLocal(snapshotFromMap());
   }
 
   function createFeature(s){
     byId[s.id]=s;
-    const pos={lat:s.lat,lng:s.lng};
+    var pos={lat:s.lat,lng:s.lng};
 
-    const marker=new google.maps.Marker({
-      position:pos,map,title:s.name,
+    var marker=new google.maps.Marker({
+      position:pos,map:map,title:s.name,
       icon:{path:google.maps.SymbolPath.CIRCLE,scale:6,fillColor:'#e11d48',fillOpacity:1,strokeColor:'#fff',strokeWeight:2},
       draggable:!isShare,zIndex:2
     });
     marker.__id=s.id; markers.push(marker);
 
-    const circle=new google.maps.Circle({
-      map,center:pos,radius:s.style.radius,
-      strokeColor:s.style.stroke,strokeOpacity:0.95,strokeWeight:s.style.strokeWeight,
-      fillColor:s.style.fill,fillOpacity:s.style.fillOpacity,
-      clickable:true,cursor:'pointer',zIndex:1,
+    var circle=new google.maps.Circle({
+      map:map, center:pos, radius:s.style.radius,
+      strokeColor:s.style.stroke, strokeOpacity:0.95, strokeWeight:s.style.strokeWeight,
+      fillColor:s.style.fill, fillOpacity:s.style.fillOpacity,
+      clickable:true, cursor:'pointer', zIndex:1,
       editable: !isShare
     });
     circle.__id=s.id; circles.push(circle);
 
-    const flash=()=>{circle.setOptions({strokeOpacity:1,fillOpacity:Math.min(s.style.fillOpacity+0.06,1)}); setTimeout(()=>circle.setOptions({strokeOpacity:0.95,fillOpacity:s.style.fillOpacity}),240);};
-    const pinOpen=()=>{pinnedId=s.id; openCard(s); map.panTo(pos); flash();};
+    function flash(){ circle.setOptions({strokeOpacity:1,fillOpacity:Math.min(s.style.fillOpacity+0.06,1)}); setTimeout(function(){ circle.setOptions({strokeOpacity:0.95,fillOpacity:s.style.fillOpacity}); },240); }
+    function pinOpen(){ pinnedId=s.id; openCard(s); map.panTo(pos); flash(); }
     marker.addListener('click',pinOpen);
     circle.addListener('click',pinOpen);
-    circle.addListener('mouseover',()=>{ if(pinnedId) return; hoverId=s.id; openCard(s); flash(); });
-    circle.addListener('mouseout', ()=>{ if(pinnedId) return; if(hoverId===s.id) closeCard(); });
+    circle.addListener('mouseover',function(){ if(pinnedId) return; hoverId=s.id; openCard(s); flash(); });
+    circle.addListener('mouseout', function(){ if(pinnedId) return; if(hoverId===s.id) closeCard(); });
 
-    marker.addListener('dragend',e=>{ if(isShare) return; s.lat=e.latLng.lat(); s.lng=e.latLng.lng(); syncFeature(s); });
+    marker.addListener('dragend',function(e){ if(isShare) return; s.lat=e.latLng.lat(); s.lng=e.latLng.lng(); syncFeature(s); });
 
-    // تحديث نصف القطر من مقبض التحرير
-    google.maps.event.addListener(circle, 'radius_changed', () => {
-      if (isShare) return;
-      if (circle.__id !== selectedId) return;
-      const cs = byId[selectedId];
-      cs.style.radius = Math.round(circle.getRadius());
-      radiusEl.textContent = `${cs.style.radius} م`;
+    google.maps.event.addListener(circle,'radius_changed',function(){
+      if(isShare) return;
+      if(circle.__id!==selectedId) return;
+      var cs=byId[selectedId];
+      cs.style.radius=Math.round(circle.getRadius());
+      if(radiusEl) radiusEl.textContent=cs.style.radius+' م';
       saveLocal(snapshotFromMap());
     });
   }
 
-  const bounds=new google.maps.LatLngBounds();
-  state.sites.forEach(s=>{ createFeature(s); bounds.extend({lat:s.lat,lng:s.lng}); });
+  var bounds=new google.maps.LatLngBounds();
+  for(var i=0;i<state.sites.length;i++){ var s=state.sites[i]; createFeature(s); bounds.extend({lat:s.lat,lng:s.lng}); }
   if(isShare && !bounds.isEmpty()) map.fitBounds(bounds,60);
 
-  /* أدوات التحرير – فقط خارج وضع العرض */
+  /* أدوات التحرير */
   if(!isShare){
-    const toggleMarkers=document.getElementById('toggle-markers');
-    const toggleCircles=document.getElementById('toggle-circles');
-    const baseMapSel=document.getElementById('basemap');
-    const shareBtn=document.getElementById('share-btn');
-    const toastEl=document.getElementById('toast');
-    const previewBox=document.getElementById('share-preview');
-    const shareInput=document.getElementById('share-url');
-    const openBtn=document.getElementById('open-url');
+    var toggleMarkers=document.getElementById('toggle-markers');
+    var toggleCircles=document.getElementById('toggle-circles');
+    var baseMapSel=document.getElementById('basemap');
+    var shareBtn=document.getElementById('share-btn');
+    var toastEl=document.getElementById('toast');
+    var previewBox=document.getElementById('share-preview');
+    var shareInput=document.getElementById('share-url');
+    var openBtn=document.getElementById('open-url');
 
-    const edRadius=document.getElementById('ed-radius');
-    const edFill=document.getElementById('ed-fill');
-    const edFillOp=document.getElementById('ed-fillop');
-    const edStroke=document.getElementById('ed-stroke');
-    const edStrokeW=document.getElementById('ed-stroke-w');
-    const btnAdd=document.getElementById('btn-add');
-    const btnDel=document.getElementById('btn-del');
+    var edRadius=document.getElementById('ed-radius');
+    var edFill=document.getElementById('ed-fill');
+    var edFillOp=document.getElementById('ed-fillop');
+    var edStroke=document.getElementById('ed-stroke');
+    var edStrokeW=document.getElementById('ed-stroke-w');
+    var btnAdd=document.getElementById('btn-add');
+    var btnDel=document.getElementById('btn-del');
+    var editorInput=document.getElementById('editor-input');
 
-    baseMapSel.value = map.getMapTypeId();
-    toggleMarkers.addEventListener('change',()=>{ const on=toggleMarkers.checked; markers.forEach(m=>m.setMap(on?map:null)); });
-    toggleCircles.addEventListener('change',()=>{ const on=toggleCircles.checked; circles.forEach(c=>c.setMap(on?map:null)); });
-    baseMapSel.addEventListener('change',()=>map.setMapTypeId(baseMapSel.value));
+    if(baseMapSel){ baseMapSel.value = map.getMapTypeId(); baseMapSel.addEventListener('change',function(){ map.setMapTypeId(baseMapSel.value); }); }
+    if(toggleMarkers) toggleMarkers.addEventListener('change',function(){ var on=toggleMarkers.checked; markers.forEach(function(m){ m.setMap(on?map:null); }); });
+    if(toggleCircles) toggleCircles.addEventListener('change',function(){ var on=toggleCircles.checked; circles.forEach(function(c){ c.setMap(on?map:null); }); });
 
-    const applyLive = fn => {
-      if (!selectedId) return;
-      const s = byId[selectedId];
-      const c = getCircleById(selectedId);
-      if (!s || !c) return;
-      fn(s, c);
-      saveLocal(snapshotFromMap());
-    };
+    function applyLive(fn){
+      if(!selectedId) return;
+      var s=byId[selectedId], c=getCircleById(selectedId);
+      if(!s||!c) return;
+      fn(s,c); saveLocal(snapshotFromMap());
+    }
 
-    // نصف القطر
-    edRadius.addEventListener('input', () => {
-      applyLive((s, c) => {
-        const r = edRadius.valueAsNumber || parseInt(edRadius.value, 10) || 15;
-        s.style.radius = r;
-        c.setRadius(r);
-        radiusEl.textContent = `${r} م`;
+    if(edRadius) edRadius.addEventListener('input',function(){
+      applyLive(function(s,c){
+        var r = edRadius.valueAsNumber || parseInt(edRadius.value,10) || 15;
+        s.style.radius=r; c.setRadius(r);
+        if(radiusEl) radiusEl.textContent=r+' م';
       });
     });
-    // لون التعبئة
-    edFill.addEventListener('input', () => {
-      applyLive((s, c) => {
-        const v = (edFill.value || '#60a5fa').toLowerCase();
-        s.style.fill = v; c.setOptions({ fillColor: v });
+    if(edFill) edFill.addEventListener('input',function(){
+      applyLive(function(s,c){ var v=(edFill.value||'#60a5fa').toLowerCase(); s.style.fill=v; c.setOptions({fillColor:v}); });
+    });
+    if(edFillOp) edFillOp.addEventListener('input',function(){
+      applyLive(function(s,c){
+        var vv = (edFillOp.valueAsNumber!=null ? edFillOp.valueAsNumber : parseFloat(edFillOp.value));
+        if(isNaN(vv)) vv = 0.16;
+        s.style.fillOpacity=vv; c.setOptions({fillOpacity:vv});
       });
     });
-    // شفافية التعبئة
-    edFillOp.addEventListener('input', () => {
-      applyLive((s, c) => {
-        const v = edFillOp.valueAsNumber ?? parseFloat(edFillOp.value) || 0.16;
-        s.style.fillOpacity = v; c.setOptions({ fillOpacity: v });
+    if(edStroke) edStroke.addEventListener('input',function(){
+      applyLive(function(s,c){ var v=(edStroke.value||'#60a5fa').toLowerCase(); s.style.stroke=v; c.setOptions({strokeColor:v}); });
+    });
+    if(edStrokeW) edStrokeW.addEventListener('input',function(){
+      applyLive(function(s,c){
+        var v=edStrokeW.valueAsNumber || parseInt(edStrokeW.value,10); if(!v) v=2;
+        s.style.strokeWeight=v; c.setOptions({strokeWeight:v});
       });
     });
-    // لون الحدود
-    edStroke.addEventListener('input', () => {
-      applyLive((s, c) => {
-        const v = (edStroke.value || '#60a5fa').toLowerCase();
-        s.style.stroke = v; c.setOptions({ strokeColor: v });
-      });
-    });
-    // سماكة الحدود
-    edStrokeW.addEventListener('input', () => {
-      applyLive((s, c) => {
-        const v = edStrokeW.valueAsNumber || parseInt(edStrokeW.value, 10) || 2;
-        s.style.strokeWeight = v; c.setOptions({ strokeWeight: v });
-      });
-    });
-
-    // المستلمين (حفظ عند الكتابة)
-    document.getElementById('editor-input')?.addEventListener('input', ()=>{
-      if (!selectedId) return;
-      const s=byId[selectedId];
-      s.recipients=(document.getElementById('editor-input').value||'').split('\n').map(x=>x.trim()).filter(Boolean);
-      recEl.textContent=renderRecipients(s.recipients);
+    if(editorInput) editorInput.addEventListener('input',function(){
+      if(!selectedId) return; var s=byId[selectedId];
+      s.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
+      if(recEl) recEl.textContent=renderRecipients(s.recipients);
       saveLocal(snapshotFromMap());
     });
 
-    // إضافة / حذف
-    btnAdd.addEventListener('click',()=>{
-      const c=map.getCenter();
-      const s={id:'s-'+Math.random().toString(36).slice(2,8),name:'موقع جديد',type:'نقطة',lat:c.lat(),lng:c.lng(),recipients:[],style:{...DEF_STYLE}};
+    if(btnAdd) btnAdd.addEventListener('click',function(){
+      var c=map.getCenter();
+      var s={id:'s-'+Math.random().toString(36).slice(2,8),name:'موقع جديد',type:'نقطة',lat:c.lat(),lng:c.lng(),recipients:[],style:clone(DEF_STYLE)};
       state.sites.push(s); createFeature(s); bounds.extend({lat:s.lat,lng:s.lng});
       pinnedId=s.id; openCard(s); saveLocal(snapshotFromMap());
     });
-    btnDel.addEventListener('click',()=>{
+    if(btnDel) btnDel.addEventListener('click',function(){
       if(!selectedId) return;
-      const i=state.sites.findIndex(x=>x.id===selectedId);
-      if(i>=0){
-        const mi=markers.findIndex(m=>m.__id===selectedId);
-        const ci=circles.findIndex(c=>c.__id===selectedId);
-        if(mi>=0){ markers[mi].setMap(null); markers.splice(mi,1); }
-        if(ci>=0){ circles[ci].setMap(null); circles.splice(ci,1); }
-        delete byId[selectedId]; state.sites.splice(i,1);
-        pinnedId=null; closeCard(); saveLocal(snapshotFromMap());
+      var idx=-1; for(var i=0;i<state.sites.length;i++){ if(state.sites[i].id===selectedId){ idx=i; break; } }
+      if(idx>=0){
+        for(var mi=0;mi<markers.length;mi++) if(markers[mi].__id===selectedId){ markers[mi].setMap(null); markers.splice(mi,1); break; }
+        for(var ci=0;ci<circles.length;ci++) if(circles[ci].__id===selectedId){ circles[ci].setMap(null); circles.splice(ci,1); break; }
+        delete byId[selectedId]; state.sites.splice(idx,1); pinnedId=null; closeCard(); saveLocal(snapshotFromMap());
       }
     });
 
-    // مشاركة قصيرة c4 + منع الكاش للجوال
     async function doShare(){
-      // التقط أي تعديل بالمحرر
-      if(selectedId){
-        const s=byId[selectedId];
-        s.recipients=(document.getElementById('editor-input').value||'').split('\n').map(x=>x.trim()).filter(Boolean);
+      if(selectedId && editorInput){
+        var s=byId[selectedId];
+        s.recipients=String(editorInput.value||'').split('\n').map(function(x){return x.trim();}).filter(Boolean);
       }
-      const x = encC4(snapshotFromMap());                                     // قصير جدًا
-      const url = `${location.origin}${location.pathname}?view=share&x=${x}&t=${Date.now()}`;
-      document.getElementById('share-preview')?.classList.remove('hidden');
-      const shareInput=document.getElementById('share-url'); if(shareInput) shareInput.value=url;
-
-      let copied=false; try{ await navigator.clipboard.writeText(url); copied=true; }catch{}
+      var x = encC4(snapshotFromMap());
+      var url = location.origin+location.pathname+'?view=share&x='+x+'&t='+(Date.now());
+      if(previewBox) previewBox.classList.remove('hidden');
+      if(shareInput) shareInput.value=url;
+      var copied=false; try{ await navigator.clipboard.writeText(url); copied=true; }catch(e){}
       if(!copied && shareInput){ shareInput.focus(); shareInput.select(); }
-      const toast=document.getElementById('toast'); if(toast){ toast.textContent="تم النسخ ✅ (افتح من المتصفح)"; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'),2000); }
+      if(toastEl){ toastEl.textContent='تم النسخ ✅ (افتح من المتصفح)'; toastEl.classList.remove('hidden'); setTimeout(function(){ toastEl.classList.add('hidden'); },2000); }
     }
-    document.getElementById('share-btn')?.addEventListener('click', doShare);
-    document.getElementById('open-url')?.addEventListener('click',()=>{ const v=document.getElementById('share-url')?.value; if(v) window.open(v,'_blank'); });
+    if(shareBtn) shareBtn.addEventListener('click',doShare);
+    if(openBtn) openBtn.addEventListener('click',function(){ if(shareInput&&shareInput.value) window.open(shareInput.value,'_blank'); });
   }
 
-  map.addListener('click',()=>{ pinnedId=null; closeCard(); });
-  console.log(isShare ? 'Share View (locked / c4-ready)' : 'Editor View');
+  map.addListener('click',function(){ pinnedId=null; closeCard(); });
+  console.log(isShare ? 'Share View (locked / c4)' : 'Editor View');
 };
