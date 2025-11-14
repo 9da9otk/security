@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v11.4 (marker kinds + close on save) */
+/* Diriyah Security Map – v11.5 (fix add cursor + marker kinds) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -193,10 +193,7 @@ function applyShapeVisibility(item){
   }
 }
 
-/**
- * نكتب حالة الخريطة في الـ hash بدون قصّ المواقع.
- * إذا كان الرابط طويل جداً، نحذف إعدادات العرض ونترك بيانات المواقع.
- */
+/* نكتب حالة الخريطة في الـ hash بدون قصّ المواقع. */
 function writeShare(state){
   if(shareMode) return;
 
@@ -223,8 +220,8 @@ function buildState(){
   const m=map.getMapTypeId()==='roadmap'?'r':'h';
   const t=btnTraffic.getAttribute('aria-pressed')==='true'?1:0;
 
-  const c=[];  // deltas for seeded
-  const n=[];  // full specs for new
+  const c=[];  // deltas
+  const n=[];  // new
 
   circles.forEach(({id,circle,meta})=>{
     const r=Math.round(circle.getRadius());
@@ -310,7 +307,6 @@ function applyState(s){
     btnTraffic.setAttribute('aria-pressed','false');
   }
 
-  // seeds
   if(Array.isArray(s.c)){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
@@ -340,7 +336,6 @@ function applyState(s){
     });
   }
 
-  // new circles
   if(Array.isArray(s.n)){
     s.n.forEach(row=>{
       const [id,lat,lng,name,r,sc,fo,sw,rec,useMarker,mc,ms,mk] = row;
@@ -491,6 +486,11 @@ function boot(){
       openCard(item);
       cardPinned=true;
       persist();
+
+      // إلغاء وضع الإضافة بعد إنشاء أول موقع
+      addMode=false;
+      btnAdd.setAttribute('aria-pressed','false');
+      document.body.classList.remove('add-cursor');
     }
   });
 
