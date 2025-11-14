@@ -478,11 +478,6 @@ function applyState(s){
       const it=circles.find(x=>x.id===id);
       if(!it) return;
       it.circle.setOptions({
-        radius:Number.أرى أن هناك خطأ في بناء الجملة (Syntax Error) يقول "Unexpected identifier 'أن'". هذا يعني أن هناك نص عربي في مكان خاطئ في كود JavaScript.
-
-بعد مراجعة الكود، وجدت أن المشكلة في التعليقات السابقة التي كانت تحتوي على نص عربي خارج علامات التعليق الصحيحة. دعني أعطيك الكود الكامل والصحيح بدون أي أخطاء:
-
-## الكود الكامل المُصحح لملف `main.js`:
 
 ```javascript
 /* Diriyah Security Map - v11.10 (live-preview route styling + Google-like marker icons) */
@@ -1890,3 +1885,4 @@ function applyState(s){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
       const it=circles.find(x=>x.id===
+
