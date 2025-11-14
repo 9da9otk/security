@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v11.7 (full build with zoom-aware SVG monochrome marker icons + marker kinds) */
+/* Diriyah Security Map – v11.8 (full build: zoom-aware SVG markers + Directions routing feature) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -268,6 +268,139 @@ function updateMarkersScale(){
   });
 }
 
+/* ---------- Route (Directions) feature ---------- */
+// directions objects
+let directionsService = null;
+let directionsRenderer = null;
+let routeMode = false;              // true = وضع إنشاء/تحرير مسار
+let routePoints = [];               // array of google.maps.LatLng for stops (in order)
+let routeStopMarkers = [];          // small markers for each stop
+let currentRouteOverview = null;    // overview_polyline string saved for share
+
+// UI button references
+let btnRoute = null;
+let btnRouteClear = null;
+
+// ensure Directions objects
+function ensureDirections(){
+  if(!directionsService) directionsService = new google.maps.DirectionsService();
+  if(!directionsRenderer){
+    directionsRenderer = new google.maps.DirectionsRenderer({
+      suppressMarkers: true,
+      preserveViewport: true,
+      polylineOptions: { strokeColor: '#3344ff', strokeWeight: 4, strokeOpacity: 0.95 },
+      map
+    });
+  }
+}
+
+// create small numbered stop marker
+function createStopMarker(position, index){
+  const m = new google.maps.Marker({
+    position,
+    map,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 6,
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+      strokeColor: '#3344ff',
+      strokeWeight: 2
+    },
+    label: { text: String(index+1), color:'#3344ff', fontSize:'11px', fontWeight:'700' },
+    clickable: true,
+    draggable: true
+  });
+  m.addListener('dragend', ()=>{
+    routePoints[index] = m.getPosition();
+    requestAndRenderRoute();
+    persist();
+  });
+  m.addListener('rightclick', ()=>{
+    removeRoutePoint(index);
+    persist();
+  });
+  return m;
+}
+
+function clearRouteVisuals(){
+  routeStopMarkers.forEach(m=>m.setMap(null));
+  routeStopMarkers = [];
+  if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+  currentRouteOverview = null;
+}
+
+function addRoutePoint(latLng){
+  routePoints.push(latLng);
+  const idx = routePoints.length - 1;
+  const m = createStopMarker(latLng, idx);
+  routeStopMarkers.push(m);
+  requestAndRenderRoute();
+  persist();
+}
+
+function removeRoutePoint(idx){
+  if(idx < 0 || idx >= routePoints.length) return;
+  routePoints.splice(idx,1);
+  if(routeStopMarkers[idx]){ routeStopMarkers[idx].setMap(null); }
+  routeStopMarkers.splice(idx,1);
+  routeStopMarkers.forEach((m,i)=>{ if(m.getLabel) m.setLabel({ text:String(i+1), color:'#3344ff', fontSize:'11px', fontWeight:'700' }); });
+  requestAndRenderRoute();
+}
+
+function requestAndRenderRoute(){
+  if(!map) return;
+  ensureDirections();
+  if(routePoints.length < 2){
+    if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+    currentRouteOverview = null;
+    return;
+  }
+
+  const origin = routePoints[0];
+  const destination = routePoints[routePoints.length - 1];
+  const waypoints = routePoints.slice(1, -1).map(p => ({ location: p, stopover: true }));
+
+  const req = {
+    origin,
+    destination,
+    waypoints,
+    travelMode: google.maps.TravelMode.DRIVING,
+    optimizeWaypoints: false
+  };
+
+  directionsService.route(req, (result, status) => {
+    if(status === 'OK' && result){
+      directionsRenderer.setDirections(result);
+      const r = result.routes && result.routes[0];
+      currentRouteOverview = r && r.overview_polyline ? r.overview_polyline.points : null;
+    } else {
+      showToast('تعذر حساب المسار: ' + status);
+    }
+  });
+}
+
+function restoreRouteFromOverview(polyStr){
+  if(!polyStr) return;
+  try{
+    const path = google.maps.geometry.encoding.decodePath(polyStr);
+    clearRouteVisuals();
+    // draw polyline as simple visual (not full directions)
+    const poly = new google.maps.Polyline({
+      map,
+      path: path,
+      strokeColor: '#3344ff',
+      strokeWeight: 4,
+      strokeOpacity: 0.95,
+      zIndex: 9998
+    });
+    currentRouteOverview = polyStr;
+    // Note: stop markers are not recreated from overview; keep as visual route only.
+  }catch(e){
+    console.warn('restoreRouteFromOverview failed', e);
+  }
+}
+
 /* ---------------- State write/read (hash) ---------------- */
 function writeShare(state){
   if(shareMode) return;
@@ -278,7 +411,8 @@ function writeShare(state){
   if(tok.length > 1800){
     payload = {
       c: state.c || [],
-      n: state.n || []
+      n: state.n || [],
+      r: state.r || null
     };
     tok = b64uEncode(JSON.stringify(payload));
   }
@@ -345,13 +479,16 @@ function buildState(){
     }
   });
 
+  const routeObj = currentRouteOverview ? { ov: currentRouteOverview } : null;
+
   return {
     p:[+ctr.lng().toFixed(4), +ctr.lat().toFixed(4)],
     z,
     m,
     t,
     c,
-    n
+    n,
+    r: routeObj
   };
 }
 
@@ -447,6 +584,11 @@ function applyState(s){
       applyShapeVisibility(item);
     });
   }
+
+  // restore route if present
+  if(s && s.r && s.r.ov){
+    restoreRouteFromOverview(s.r.ov);
+  }
 }
 
 /* ---------------- Boot ---------------- */
@@ -457,6 +599,8 @@ function boot(){
   btnShare    = document.getElementById('btnShare');
   btnEdit     = document.getElementById('btnEdit');
   btnAdd      = document.getElementById('btnAdd');
+  btnRoute    = document.getElementById('btnRoute');
+  btnRouteClear = document.getElementById('btnRouteClear');
   modeBadge   = document.getElementById('modeBadge');
   toast       = document.getElementById('toast');
 
@@ -495,6 +639,33 @@ function boot(){
     persist();
   }, {passive:true});
 
+  // route button
+  if(btnRoute){
+    btnRoute.addEventListener('click', ()=>{
+      if(shareMode){ showToast('وضع المشاركة لا يسمح بالتحرير'); return; }
+      routeMode = !routeMode;
+      btnRoute.setAttribute('aria-pressed', String(routeMode));
+      if(routeMode){
+        showToast('وضع المسار مفعل — انقر على الخريطة لإضافة نقاط المسار. سحب نقطة يمكّنك من إعادة تموضعها. كليك يمين لحذف نقطة.');
+        addMode = false;
+        btnAdd.setAttribute('aria-pressed','false');
+        document.body.classList.remove('add-cursor');
+      } else {
+        showToast('تم إيقاف وضع المسار');
+      }
+    }, {passive:true});
+  }
+
+  // route clear button
+  if(btnRouteClear){
+    btnRouteClear.addEventListener('click', ()=>{
+      routePoints = [];
+      clearRouteVisuals();
+      persist();
+      showToast('تم مسح المسار');
+    }, {passive:true});
+  }
+
   // force flush before copy
   btnShare.addEventListener('click', async ()=>{
     await nextTick();
@@ -523,6 +694,13 @@ function boot(){
 
   map.addListener('click', (e)=>{
     if (cardPinned && infoWin) { infoWin.close(); cardPinned = false; }
+
+    // route mode priority
+    if(routeMode && editMode && !shareMode){
+      addRoutePoint(e.latLng);
+      return;
+    }
+
     if(addMode && editMode && !shareMode){
       const id = genNewId();
       const circle = new google.maps.Circle({
