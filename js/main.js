@@ -478,8 +478,12 @@ function applyState(s){
       const it=circles.find(x=>x.id===id);
       if(!it) return;
       it.circle.setOptions({
+        radius:Number.isFinite(r)?r:DEFAULT_RADIUS,
+        strokeColor:sc?`#${sc}`:DEFAULT_COLOR,
+        fillColor:sc?`#${sc}`:DEFAULT_COLOR,
+        fillOpacity:Number.isFinite(fo)?(fo/100):DEFAULT_أرى أن المشكلة في السطر الذي يحتوي على `it.circle.setOptions({` - يبدو أن الكود منقطع وغير مكتمل. دعني أعطيك الكود الكامل والصحيح لملف `main.js` بدون أي انقطاع:
 
-
+```javascript
 /* Diriyah Security Map - v11.10 (live-preview route styling + Google-like marker icons) */
 'use strict';
 
@@ -826,7 +830,7 @@ function renderRouteCard(){
   const weight  = Number.isFinite(routeStyle.weight)  ? routeStyle.weight  : 4;
   const opacity = Number.isFinite(routeStyle.opacity) ? routeStyle.opacity : 0.95;
 
-  return __CODE_INLINE_9__;
+  return __CODE_INLINE_11__;
 }
 
 function attachRouteCardEvents(){
@@ -911,7 +915,7 @@ function writeShare(state){
     payload = { c: state.c || [], n: state.n || [], r: state.r || null };
     tok = b64uEncode(JSON.stringify(payload));
   }
-  const newHash = __CODE_INLINE_10__;
+  const newHash = __CODE_INLINE_12__;
   if(location.hash !== newHash){ history.replaceState(null,'',newHash); }
 }
 
@@ -933,11 +937,13 @@ function applyState(s){
   if(Array.isArray(s.c)){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
-      const it=circles.find(x=>x.id===أرى أن هناك خطأ في بناء الجملة (Syntax Error) يقول "Unexpected identifier 'أن'". هذا يعني أن هناك نص عربي في مكان خاطئ في كود JavaScript.
-
-بعد مراجعة الكود، وجدت أن المشكلة في التعليقات السابقة التي كانت تحتوي على نص عربي خارج علامات التعليق الصحيحة. 
-
-إليك الكود الكامل والصحيح بدون أي أخطاء:
+      const it=circles.find(x=>x.id===id);
+      if(!it) return;
+      it.circle.setOptions({
+        radius:Number.isFinite(r)?r:DEFAULT_RADIUS,
+        strokeColor:sc?__CODE_INLINE_13__:DEFAULT_COLOR,
+        fillColor:sc?__CODE_INLINE_14__:DEFAULT_COLOR,
+        fillOpacity:Number.isFinite(fo)?(fo/100):DEFAULT_أرى أن المشكلة في السطر الذي يحتوي على __CODE_INLINE_15__ - يبدو أن الكود منقطع وغير مكتمل. دعني أعطيك الكود الكامل والصحيح لملف __CODE_INLINE_16__ بدون أي انقطاع:
 
 __CODE_FENCE_1__javascript
 /* Diriyah Security Map - v11.10 (live-preview route styling + Google-like marker icons) */
@@ -1020,12 +1026,12 @@ const MARKER_KINDS = [
   { id:'meet',   label:'نقطة تجمع',     svg:meetSvg('#e94235') },
 ];
 
-function pinSvg(fill){ return __CODE_INLINE_11__; }
-function guardSvg(fill){ return __CODE_INLINE_12__; }
-function patrolSvg(fill){ return __CODE_INLINE_13__; }
-function cameraSvg(fill){ return __CODE_INLINE_14__; }
-function gateSvg(fill){ return __CODE_INLINE_15__; }
-function meetSvg(fill){ return __CODE_INLINE_16__; }
+function pinSvg(fill){ return __CODE_INLINE_17__; }
+function guardSvg(fill){ return __CODE_INLINE_18__; }
+function patrolSvg(fill){ return __CODE_INLINE_19__; }
+function cameraSvg(fill){ return __CODE_INLINE_20__; }
+function gateSvg(fill){ return __CODE_INLINE_21__; }
+function meetSvg(fill){ return __CODE_INLINE_22__; }
 
 /* utilities */
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
@@ -1399,11 +1405,13 @@ function applyState(s){
   if(Array.isArray(s.c)){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
-      const it=circles.find(x=>x.id===أرى أن هناك خطأ في بناء الجملة (Syntax Error) يقول "Unexpected identifier 'أن'". هذا يعني أن هناك نص عربي في مكان خاطئ في كود JavaScript.
-
-بعد مراجعة الكود، وجدت أن المشكلة في التعليقات السابقة التي كانت تحتوي على نص عربي خارج علامات التعليق الصحيحة. دعني أعطيك الكود الكامل والصحيح بدون أي أخطاء:
-
-## الكود الكامل المُصحح لملف `main.js`:
+      const it=circles.find(x=>x.id===id);
+      if(!it) return;
+      it.circle.setOptions({
+        radius:Number.isFinite(r)?r:DEFAULT_RADIUS,
+        strokeColor:sc?`#${sc}`:DEFAULT_COLOR,
+        fillColor:sc?`#${sc}`:DEFAULT_COLOR,
+        fillOpacity:Number.isFinite(fo)?(fo/100):DEFAULT_أرى أن المشكلة في السطر الذي يحتوي على `it.circle.setOptions({` - يبدو أن الكود منقطع وغير مكتمل. دعني أعطيك الكود الكامل والصحيح لملف `main.js` بدون أي انقطاع:
 
 ```javascript
 /* Diriyah Security Map - v11.10 (live-preview route styling + Google-like marker icons) */
@@ -1542,7 +1550,7 @@ function buildMarkerIcon(color, userScale, kindId){
   const w = Math.max(12, Math.round(base * (userScale||DEFAULT_MARKER_SCALE) * zoomScale));
   const h = w;
   const kind = MARKER_KINDS.find(k=>k.id===kindId)||MARKER_KINDS[0];
-  const svg = kind.svg.replace(/fill="([^"]*)"/,`fill="<span class="math-inline katex"><span class="katex-error" title="ParseError: KaTeX parse error: Expected group after &#x27;_&#x27; at position 31: …_MARKER_COLOR}&quot;_̲_CODE_INLINE_28…" style="color:#cc0000">{color||DEFAULT_MARKER_COLOR}&quot;`);
+  const svg = kind.svg.replace(/fill="([^"]*)"/,`fill="<span class="math-inline katex"><span class="katex-error" title="ParseError: KaTeX parse error: Expected group after &#x27;_&#x27; at position 31: …_MARKER_COLOR}&quot;_̲_CODE_INLINE_37…" style="color:#cc0000">{color||DEFAULT_MARKER_COLOR}&quot;`);
   const encoded = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   return { url: encoded, scaledSize: new google.maps.Size(w, h), anchor: new google.maps.Point(Math.round(w/2), Math.round(h)) };
 }
@@ -1768,7 +1776,7 @@ function renderRouteCard(){
           <span id="route-weight-lbl" style="font-size:12px;color:#666">${weight}</span></div>
         <div class="field"><label style="font-size:12px;color:#333;">الشفافية:</label>
           <input id="route-opacity" type="range" min="0.1" max="1" step="0.05" value="<span class="math-inline katex"><span class="katex-error" title="ParseError: KaTeX parse error: Expected group after &#x27;_&#x27; at position 43: …%;&quot;&gt;
-          _̲_HTML_43____HTM…" style="color:#cc0000">{opacity}&quot; style=&quot;width:100%;&quot;&gt;
+          _̲_HTML_54____HTM…" style="color:#cc0000">{opacity}&quot; style=&quot;width:100%;&quot;&gt;
           <span id="route-opacity-lbl" style="font-size:12px;color:#666">${opacity.toFixed(2)}</span></div>
       </div>
 
@@ -1884,6 +1892,10 @@ function applyState(s){
   if(Array.isArray(s.c)){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
-      const it=circles.find(x=>x.id===
-
-
+      const it=circles.find(x=>x.id===id);
+      if(!it) return;
+      it.circle.setOptions({
+        radius:Number.isFinite(r)?r:DEFAULT_RADIUS,
+        strokeColor:sc?`#<span class="math-inline katex"><span class="katex-error" title="ParseError: KaTeX parse error: Expected group after &#x27;_&#x27; at position 5: {sc}_̲_CODE_INLINE_40…" style="color:#cc0000">{sc}`:DEFAULT_COLOR,
+        fillColor:sc?`#</span></span>{sc}`:DEFAULT_COLOR,
+        fillOpacity:Number.isFinite(fo)?(fo/100):DEFAULT_
