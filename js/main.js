@@ -479,7 +479,7 @@ function applyState(s){
       if(!it) return;
       it.circle.setOptions({
 
-```javascript
+
 /* Diriyah Security Map - v11.10 (live-preview route styling + Google-like marker icons) */
 'use strict';
 
@@ -1885,4 +1885,5 @@ function applyState(s){
     s.c.forEach(row=>{
       const [id,r,sc,fo,sw,rec,name,useMarker,mc,ms,mk] = row;
       const it=circles.find(x=>x.id===
+
 
