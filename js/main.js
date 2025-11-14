@@ -879,5 +879,96 @@ function setDraggableForAll(on){ circles.forEach(it=> it.circle.setDraggable(on)
 function genNewId(){ let id = -Date.now(); while(circles.some(x=>x.id===id)) id--; return id; }
 function nextTick(){ return new Promise(res=> requestAnimationFrame(()=> requestAnimationFrame(res))); }
 
-// ملاحظة: تأكد أن باقي الدوال مثل buildState, applyShapeVisibility, updateMarkersScale, ensureMarker
-// موجودة في أسفل الملف كما في نسختك الأصلية، لأنك لم تدرجها كلها في الرسالة.
+/* ---------------- Missing Functions ---------------- */
+function ensureMarker(item){
+  if (item.meta && item.meta.useMarker) {
+    if (!item.marker) {
+      item.marker = new google.maps.Marker({
+        map,
+        position: item.circle.getCenter(),
+        icon: buildMarkerIcon(
+          item.meta.markerColor || DEFAULT_MARKER_COLOR,
+          item.meta.markerScale || DEFAULT_MARKER_SCALE,
+          item.meta.markerKind  || DEFAULT_MARKER_KIND
+        ),
+        zIndex: 10000
+      });
+    }
+  } else {
+    if (item.marker) {
+      item.marker.setMap(null);
+      item.marker = null;
+    }
+  }
+  return item.marker;
+}
+
+function applyShapeVisibility(item){
+  const useMarker = !!item.meta.useMarker;
+  item.circle.setVisible(!useMarker || true);
+  if (useMarker) {
+    const m = ensureMarker(item);
+    if (m) m.setMap(map);
+  } else {
+    if (item.marker) item.marker.setMap(null);
+  }
+}
+
+function updateMarkersScale(){
+  const zoom = map.getZoom ? map.getZoom() : BASE_ZOOM;
+  circles.forEach(it=>{
+    if(it.marker && it.meta && it.meta.useMarker){
+      it.marker.setIcon(
+        buildMarkerIcon(
+          it.meta.markerColor || DEFAULT_MARKER_COLOR,
+          it.meta.markerScale || DEFAULT_MARKER_SCALE,
+          it.meta.markerKind  || DEFAULT_MARKER_KIND
+        )
+      );
+    }
+  });
+}
+
+function buildState(){
+  const center = map.getCenter();
+  const zoom   = map.getZoom();
+
+  const cRows = [];
+  const nRows = [];
+
+  circles.forEach(it=>{
+    const center = it.circle.getCenter();
+    const r  = Math.round(it.circle.getRadius());
+    const sc = (it.circle.get('strokeColor') || DEFAULT_COLOR).replace('#','');
+    const fo = Math.round((it.circle.get('fillOpacity') ?? DEFAULT_FILL_OPACITY) * 100);
+    const sw = it.circle.get('strokeWeight') || DEFAULT_STROKE_WEIGHT;
+    const rec = (it.meta.recipients || []).join('~');
+    const name = it.meta.name || '';
+    const useMarker = it.meta.useMarker ? 1 : 0;
+    const mc = (it.meta.markerColor || '').replace('#','');
+    const ms = it.meta.markerScale || DEFAULT_MARKER_SCALE;
+    const mk = it.meta.markerKind || DEFAULT_MARKER_KIND;
+
+    if(it.meta.isNew){
+      nRows.push([it.id, center.lat(), center.lng(), name, r, sc, fo, sw, rec, useMarker, mc, ms, mk]);
+    }else{
+      cRows.push([it.id, r, sc, fo, sw, rec, name, useMarker, mc, ms, mk]);
+    }
+  });
+
+  const typ = map.getMapTypeId && map.getMapTypeId();
+  const m = (typ === 'roadmap') ? 'r' : 'h';
+  const t = (trafficLayer && trafficLayer.getMap && trafficLayer.getMap()) ? 1 : 0;
+
+  const r = currentRouteOverview ? { ov: currentRouteOverview } : null;
+
+  return {
+    p:[center.lng(), center.lat()],
+    z:zoom,
+    m,
+    t,
+    c:cRows,
+    n:nRows,
+    r
+  };
+}
