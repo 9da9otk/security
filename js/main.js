@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v11.8 (full build: zoom-aware SVG markers + Directions routing feature) */
+/* Diriyah Security Map – v11.9 (full build + route click card) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -153,20 +153,17 @@ function escapeForSvg(s){
 
 /**
  * buildMarkerIcon(color, userScale, kindId)
- * - userScale: مقياس يحدده المستخدم (مثلاً 0.8..2.0)
- * - تأخذ بعين الاعتبار zoom الحالي في الخريطة.
+ * userScale: مقياس يحدده المستخدم (مثلاً 0.8..2.0)
+ * تأخذ بعين الاعتبار zoom الحالي في الخريطة.
  */
 function buildMarkerIcon(color, userScale, kindId){
   const fill = color || DEFAULT_MARKER_COLOR;
   const userS = Number.isFinite(userScale) ? userScale : DEFAULT_MARKER_SCALE;
 
-  // current zoom (fallback to BASE_ZOOM)
   let currentZoom = (typeof map !== 'undefined' && map && typeof map.getZoom === 'function') ? map.getZoom() : BASE_ZOOM;
-  // zoomScale: استخدم علاقة أسية لكن أقل حساسية من الضعف التام
   const zoomScale = Math.pow(1.6, (currentZoom - BASE_ZOOM) / 1.0);
 
-  // base dimension
-  const base = 28; // مرجعي صغير
+  const base = 28;
   const w = Math.max(12, Math.round(base * userS * zoomScale));
   const h = w;
   const r = Math.max(6, Math.round((base/2 - 3) * userS * zoomScale));
@@ -178,7 +175,7 @@ function buildMarkerIcon(color, userScale, kindId){
   const strokeWidth = Math.max(1, Math.round(1 * Math.max(1, zoomScale)));
 
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <svg xmlns="http://www.w3.org/2000/svg " width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
       <g>
         <circle cx="${w/2}" cy="${h/2}" r="${r}" fill="${fill}" stroke="#ffffff" stroke-width="${strokeWidth}" />
         <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#ffffff"
@@ -258,7 +255,6 @@ function updateMarkersScale(){
           if(item.marker) item.marker.setIcon(buildMarkerIcon(color, userScale, kind));
         }
       }catch(e){
-        // fallback: recreate marker
         try{
           if(item.marker) { item.marker.setMap(null); item.marker = null; }
           ensureMarker(item);
@@ -280,6 +276,11 @@ let currentRouteOverview = null;    // overview_polyline string saved for share
 // UI button references
 let btnRoute = null;
 let btnRouteClear = null;
+
+// route line editing card
+let routeCardWin = null;            // InfoWindow خاص بالمسار
+let routeCardPinned = false;        // هل الكرت مفتوح؟
+let activeRoutePoly = null;         // المرجع للـ Polyline الحالي (لتعديل خصائصه)
 
 // ensure Directions objects
 function ensureDirections(){
@@ -327,6 +328,7 @@ function clearRouteVisuals(){
   routeStopMarkers.forEach(m=>m.setMap(null));
   routeStopMarkers = [];
   if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+  if(activeRoutePoly) { activeRoutePoly.setMap(null); activeRoutePoly = null; }
   currentRouteOverview = null;
 }
 
@@ -353,6 +355,7 @@ function requestAndRenderRoute(){
   ensureDirections();
   if(routePoints.length < 2){
     if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
+    if(activeRoutePoly) { activeRoutePoly.setMap(null); activeRoutePoly = null; }
     currentRouteOverview = null;
     return;
   }
@@ -374,9 +377,33 @@ function requestAndRenderRoute(){
       directionsRenderer.setDirections(result);
       const r = result.routes && result.routes[0];
       currentRouteOverview = r && r.overview_polyline ? r.overview_polyline.points : null;
+      // بعد الرسم مباشرة نستخرج Polyline لاستخدامه في الكرت
+      setTimeout(()=>{ extractActivePolyline(); },0);
     } else {
       showToast('تعذر حساب المسار: ' + status);
     }
+  });
+}
+
+// استخراج Polyline من DirectionsRenderer لاستخدامه في تغيير الخصائص
+function extractActivePolyline(){
+  if(!directionsRenderer) return;
+  const dir = directionsRenderer.getDirections();
+  if(!dir || !dir.routes || !dir.routes[0]) return;
+  const path = dir.routes[0].overview_path;
+  if(!path || !path.length) return;
+  if(activeRoutePoly) activeRoutePoly.setMap(null);
+  activeRoutePoly = new google.maps.Polyline({
+    map,
+    path: path,
+    strokeColor: '#3344ff',
+    strokeWeight: 4,
+    strokeOpacity: 0.95,
+    zIndex: 9997
+  });
+  // إضافة مستمع click على الخط ليفتح كرت التعديل
+  activeRoutePoly.addListener('click', (e)=>{
+    openRouteCard(e.latLng);
   });
 }
 
@@ -385,19 +412,140 @@ function restoreRouteFromOverview(polyStr){
   try{
     const path = google.maps.geometry.encoding.decodePath(polyStr);
     clearRouteVisuals();
-    // draw polyline as simple visual (not full directions)
-    const poly = new google.maps.Polyline({
+    activeRoutePoly = new google.maps.Polyline({
       map,
       path: path,
       strokeColor: '#3344ff',
       strokeWeight: 4,
       strokeOpacity: 0.95,
-      zIndex: 9998
+      zIndex: 9997
     });
     currentRouteOverview = polyStr;
-    // Note: stop markers are not recreated from overview; keep as visual route only.
+    activeRoutePoly.addListener('click', (e)=>{
+      openRouteCard(e.latLng);
+    });
   }catch(e){
     console.warn('restoreRouteFromOverview failed', e);
+  }
+}
+
+/* ---------------- Route Card ---------------- */
+function openRouteCard(latLng){
+  if(shareMode) return;
+  if(routeCardWin) routeCardWin.close();
+  routeCardWin = new google.maps.InfoWindow({
+    content: renderRouteCard(),
+    position: latLng,
+    maxWidth: 380,
+    pixelOffset: new google.maps.Size(0,-6)
+  });
+  routeCardWin.open({ map });
+  routeCardPinned = true;
+  attachRouteCardEvents();
+  setTimeout(()=>{
+    const root=document.getElementById('route-card-root');
+    if(!root) return;
+    const iw=root.closest('.gm-style-iw');
+    if(iw && iw.parentElement){
+      iw.parentElement.style.background='transparent';
+      iw.parentElement.style.boxShadow='none';
+      const tail=iw.parentElement.previousSibling; if(tail && tail.style) tail.style.display='none';
+    }
+  },0);
+}
+
+function renderRouteCard(){
+  const poly = activeRoutePoly;
+  let color = '#3344ff', weight = 4, opacity = 0.95;
+  if(poly){
+    color   = poly.get('strokeColor') || color;
+    weight  = poly.get('strokeWeight') || weight;
+    opacity = poly.get('strokeOpacity') || opacity;
+  }
+  return `
+  <div id="route-card-root" dir="rtl" style="min-width:320px">
+    <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+                border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:14px; color:#111; box-shadow:0 16px 36px rgba(0,0,0,.22)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <img src="img/diriyah-logo.png" alt="Diriyah" style="width:40px;height:40px;object-fit:contain;">
+        <div style="flex:1;font-weight:800;font-size:16px;">إعدادات المسار</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="field"><label style="font-size:12px;color:#333;">اللون:</label>
+          <input id="route-color" type="color" value="${color}" style="width:100%;height:28px;border:none;background:transparent;padding:0"></div>
+        <div class="field"><label style="font-size:12px;color:#333;">سماكة الخط:</label>
+          <input id="route-weight" type="range" min="1" max="12" step="1" value="${weight}" style="width:100%;">
+          <span id="route-weight-lbl" style="font-size:12px;color:#666">${weight}</span></div>
+        <div class="field"><label style="font-size:12px;color:#333;">الشفافية:</label>
+          <input id="route-opacity" type="range" min="0.1" max="1" step="0.05" value="${opacity}" style="width:100%;">
+          <span id="route-opacity-lbl" style="font-size:12px;color:#666">${opacity.toFixed(2)}</span></div>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button id="route-save"  style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 8px;cursor:pointer;">حفظ</button>
+        <button id="route-close" style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 8px;cursor:pointer;">إغلاق</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function attachRouteCardEvents(){
+  const colorEl   = document.getElementById('route-color');
+  const weightEl  = document.getElementById('route-weight');
+  const weightLbl = document.getElementById('route-weight-lbl');
+  const opacityEl = document.getElementById('route-opacity');
+  const opacityLbl= document.getElementById('route-opacity-lbl');
+  const saveBtn   = document.getElementById('route-save');
+  const closeBtn  = document.getElementById('route-close');
+
+  if(colorEl){
+    colorEl.addEventListener('input', ()=>{
+      if(activeRoutePoly) activeRoutePoly.setOptions({ strokeColor: colorEl.value });
+      if(directionsRenderer && directionsRenderer.getDirections()){
+        directionsRenderer.setOptions({
+          polylineOptions: { strokeColor: colorEl.value, strokeWeight: +(weightEl.value)||4, strokeOpacity: +(opacityEl.value)||0.95 }
+        });
+      }
+    }, {passive:true});
+  }
+  if(weightEl){
+    weightEl.addEventListener('input', ()=>{
+      const v = +(weightEl.value)||4;
+      weightLbl.textContent = v;
+      if(activeRoutePoly) activeRoutePoly.setOptions({ strokeWeight: v });
+      if(directionsRenderer && directionsRenderer.getDirections()){
+        directionsRenderer.setOptions({
+          polylineOptions: { strokeColor: colorEl.value, strokeWeight: v, strokeOpacity: +(opacityEl.value)||0.95 }
+        });
+      }
+    }, {passive:true});
+  }
+  if(opacityEl){
+    opacityEl.addEventListener('input', ()=>{
+      const v = +(opacityEl.value)||0.95;
+      opacityLbl.textContent = v.toFixed(2);
+      if(activeRoutePoly) activeRoutePoly.setOptions({ strokeOpacity: v });
+      if(directionsRenderer && directionsRenderer.getDirections()){
+        directionsRenderer.setOptions({
+          polylineOptions: { strokeColor: colorEl.value, strokeWeight: +(weightEl.value)||4, strokeOpacity: v }
+        });
+      }
+    }, {passive:true});
+  }
+  if(saveBtn){
+    saveBtn.addEventListener('click', ()=>{
+      flushPersist();
+      showToast('تم حفظ إعدادات المسار ✅');
+      if(routeCardWin){ routeCardWin.close(); routeCardWin = null; }
+      routeCardPinned = false;
+    }, {passive:true});
+  }
+  if(closeBtn){
+    closeBtn.addEventListener('click', ()=>{
+      if(routeCardWin){ routeCardWin.close(); routeCardWin = null; }
+      routeCardPinned = false;
+    }, {passive:true});
   }
 }
 
@@ -479,6 +627,7 @@ function buildState(){
     }
   });
 
+  // route state
   const routeObj = currentRouteOverview ? { ov: currentRouteOverview } : null;
 
   return {
@@ -694,6 +843,7 @@ function boot(){
 
   map.addListener('click', (e)=>{
     if (cardPinned && infoWin) { infoWin.close(); cardPinned = false; }
+    if (routeCardPinned && routeCardWin) { routeCardWin.close(); routeCardPinned = false; }
 
     // route mode priority
     if(routeMode && editMode && !shareMode){
@@ -875,7 +1025,7 @@ function renderCard(item){
           </div>
         </div>
 
-        <div id="marker-tools" style="margin-top:10px;${useMarker?'':'display:none;'}">
+        <div id="marker-tools" style="margin-top:10px;${useMarker?'':'display:none;}">
           <div style="font-weight:700; margin-bottom:6px;">أدوات الأيقونة:</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="field"><label style="font-size:12px;color:#333;white-space:nowrap;">نوع الأيقونة:</label>
@@ -1026,7 +1176,7 @@ function attachCardEvents(item){
     clr.addEventListener('click',  ()=>{ item.meta.recipients=[]; openCard(item); flushPersist(); showToast('تم حذف الأسماء'); });
   }
   if(del){
-    del.addEventListener('click',  ()=>{
+    clr.addEventListener('click',  ()=>{
       if(confirm('تأكيد حذف الموقع؟')){
         c.setMap(null);
         if(item.marker) item.marker.setMap(null);
