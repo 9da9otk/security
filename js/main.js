@@ -1025,7 +1025,7 @@ function renderCard(item){
           </div>
         </div>
 
-        <div id="marker-tools" style="margin-top:10px;${useMarker?'':'display:none;}">
+        <div id="marker-tools" style="margin-top:10px;${useMarker?'':'display:none;'}">
           <div style="font-weight:700; margin-bottom:6px;">أدوات الأيقونة:</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div class="field"><label style="font-size:12px;color:#333;white-space:nowrap;">نوع الأيقونة:</label>
@@ -1223,3 +1223,4 @@ function throttle(fn,ms){
 function setDraggableForAll(on){ circles.forEach(it=> it.circle.setDraggable(on)); }
 function genNewId(){ let id = -Date.now(); while(circles.some(x=>x.id===id)) id--; return id; }
 function nextTick(){ return new Promise(res=> requestAnimationFrame(()=> requestAnimationFrame(res))); }
+
