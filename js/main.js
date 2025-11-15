@@ -418,30 +418,24 @@ function extractActivePolyline(){
     strokeColor: routeStyle.color,
     strokeWeight: routeStyle.weight,
     strokeOpacity: routeStyle.opacity,
-    zIndex: 9997
+    zIndex: 9997,
+    clickable: true
   });
   
-  // 🔧 جديد: إضافة أحداث التمرير والضغط لعرض معلومات المسار
-  activeRoutePoly.addListener('mouseover', (e)=>{
-    if(shareMode || editMode) {
-      openRouteInfoCard(e.latLng);
-    }
-  });
-  
-  activeRoutePoly.addListener('mouseout', ()=>{
-    if(routeInfoWin && !routeCardPinned) {
-      setTimeout(() => {
-        if(routeInfoWin && !routeCardPinned) {
-          routeInfoWin.close();
-        }
-      }, 300);
-    }
-  });
-  
+  // 🔧 إصلاح: إضافة حدث النقر على الخط لفتح إعدادات المسار
   activeRoutePoly.addListener('click', (e)=>{
-    if(shareMode || editMode) {
-      openRouteInfoCard(e.latLng, true);
-    }
+    if(shareMode || !editMode) return;
+    openRouteCard(e.latLng);
+  });
+  
+  activeRoutePoly.addListener('mouseover', (e)=>{
+    if(shareMode || !editMode) return;
+    document.body.style.cursor = 'pointer';
+  });
+  
+  activeRoutePoly.addListener('mouseout', (e)=>{
+    if(shareMode || !editMode) return;
+    document.body.style.cursor = '';
   });
   
   flushPersist();
@@ -547,31 +541,25 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
         strokeColor: routeStyle.color,
         strokeWeight: routeStyle.weight,
         strokeOpacity: routeStyle.opacity,
-        zIndex: 9997
+        zIndex: 9997,
+        clickable: true
       });
       currentRouteOverview = polyStr;
       
-      // 🔧 جديد: إضافة أحداث التمرير والضغط للمسار المستعاد
-      activeRoutePoly.addListener('mouseover', (e)=>{
-        if(shareMode || editMode) {
-          openRouteInfoCard(e.latLng);
-        }
-      });
-      
-      activeRoutePoly.addListener('mouseout', ()=>{
-        if(routeInfoWin && !routeCardPinned) {
-          setTimeout(() => {
-            if(routeInfoWin && !routeCardPinned) {
-              routeInfoWin.close();
-            }
-          }, 300);
-        }
-      });
-      
+      // 🔧 إصلاح: إضافة حدث النقر على الخط لفتح إعدادات المسار
       activeRoutePoly.addListener('click', (e)=>{
-        if(shareMode || editMode) {
-          openRouteInfoCard(e.latLng, true);
-        }
+        if(shareMode || !editMode) return;
+        openRouteCard(e.latLng);
+      });
+      
+      activeRoutePoly.addListener('mouseover', (e)=>{
+        if(shareMode || !editMode) return;
+        document.body.style.cursor = 'pointer';
+      });
+      
+      activeRoutePoly.addListener('mouseout', (e)=>{
+        if(shareMode || !editMode) return;
+        document.body.style.cursor = '';
       });
     }
     
@@ -603,6 +591,7 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
           requestAndRenderRoute(); 
           persist();
         });
+        m.addListener('rightclick', ()=>{ removeRoutePoint(i); });
         return m;
       });
     }
@@ -1076,12 +1065,14 @@ function boot(){
     routeMode = !routeMode;
     btnRoute.setAttribute('aria-pressed', String(routeMode));
     if(routeMode){
-      showToast('✓ وضع المسار مفعل — انقر لإضافة نقاط');
+      showToast('✓ وضع المسار مفعل — انقر على الخريطة لإضافة نقاط المسار');
       addMode = false; 
       if(btnAdd) btnAdd.setAttribute('aria-pressed','false'); 
       document.body.classList.remove('add-cursor');
+      document.body.classList.add('route-cursor');
     } else { 
       showToast('✓ تم إيقاف وضع المسار'); 
+      document.body.classList.remove('route-cursor');
     }
   }, {passive:true});
 
@@ -1098,6 +1089,7 @@ function boot(){
     addMode = !addMode;
     btnAdd.setAttribute('aria-pressed', String(addMode));
     document.body.classList.toggle('add-cursor', addMode);
+    document.body.classList.remove('route-cursor');
     showToast(addMode ? '✓ انقر على الخريطة لإضافة موقع' : '✓ تم إلغاء الإضافة');
   }, {passive:true});
 
@@ -1446,53 +1438,6 @@ function attachCardEvents(item){
     }catch(err){ 
       showToast('فشل النسخ — حاول يدويًا'); 
     } 
-  });
-}
-
-function applyShapeVisibility(item){
-  const useMarker = item.meta.useMarker;
-  if(useMarker){
-    item.circle.setMap(null);
-    if(!item.marker){
-      item.marker = new google.maps.Marker({
-        position: item.circle.getCenter(),
-        map,
-        clickable: true,
-        draggable: editMode && !shareMode,
-        zIndex: 9999
-      });
-      item.marker.addListener('dragend', ()=>{
-        item.circle.setCenter(item.marker.getPosition());
-        persist();
-      });
-      item.marker.addListener('click', ()=>{
-        openCard(item, true);
-      });
-    } else {
-      item.marker.setMap(map);
-    }
-    updateMarkerIcon(item);
-  } else {
-    item.circle.setMap(map);
-    if(item.marker) item.marker.setMap(null);
-  }
-}
-
-function updateMarkerIcon(item){
-  if(!item.marker) return;
-  const icon = buildMarkerIcon(
-    item.meta.markerColor || DEFAULT_MARKER_COLOR,
-    item.meta.markerScale || DEFAULT_MARKER_SCALE,
-    item.meta.markerKind || DEFAULT_MARKER_KIND
-  );
-  item.marker.setIcon(icon);
-}
-
-function updateMarkersScale(){
-  circles.forEach(item=>{
-    if(item.meta.useMarker && item.marker){
-      updateMarkerIcon(item);
-    }
   });
 }
 
