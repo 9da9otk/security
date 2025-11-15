@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v12.8 (✅ fixed: complete code with all helper functions) */
+/* Diriyah Security Map – v12.9 (✅ fixed: share functionality) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -248,9 +248,14 @@ function compressState(state) {
 
 function b64uEncode(s){ 
   try {
-    const b=btoa(unescape(encodeURIComponent(s))); 
+    // استخدام TextEncoder للتأكد من الترميز الصحيح
+    const encoder = new TextEncoder();
+    const data = encoder.encode(s);
+    const binaryString = String.fromCharCode(...data);
+    const b = btoa(binaryString); 
     return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   } catch(e) {
+    console.error('Base64 encoding error:', e);
     return '';
   }
 }
@@ -259,8 +264,14 @@ function b64uDecode(t){
   try{ 
     t=String(t||'').replace(/[^A-Za-z0-9\-_]/g,''); 
     const pad=t.length%4 ? '='.repeat(4-(t.length%4)) : ''; 
-    return decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/')+pad))); 
+    const binaryString = atob(t.replace(/-/g,'+').replace(/_/g,'/')+pad);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
   }catch(e){ 
+    console.error('Base64 decoding error:', e);
     return ''; 
   } 
 }
@@ -273,6 +284,7 @@ function readShare(){
     if(!decoded) return null;
     return JSON.parse(decoded);
   }catch(e){
+    console.error('Error parsing shared state:', e);
     return null;
   } 
 }
@@ -1041,15 +1053,65 @@ function boot(){
     persist();
   }, {passive:true});
 
+  // 🔧 إصلاح كامل لدالة المشاركة
   async function copyShareLink(){
     try{
+      // تأكد من حفظ أحدث حالة
       flushPersist();
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const url = window.location.href;
-      await navigator.clipboard.writeText(url);
-      showToast('✓ تم نسخ رابط المشاركة إلى الحافظة');
-    }catch(err){
-      showToast('فشل النسخ — حاول يدويًا');
+      
+      // انتظر قليلاً لضمان حفظ الحالة
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // أنشئ الرابط
+      const baseUrl = window.location.origin + window.location.pathname;
+      const currentHash = window.location.hash;
+      
+      let shareUrl;
+      if (currentHash && currentHash.startsWith('#x=')) {
+        shareUrl = baseUrl + currentHash;
+      } else {
+        // إذا لم يكن هناك هاش، أنشئ واحداً جديداً
+        const state = buildState();
+        const compressedState = compressState(state);
+        const jsonString = JSON.stringify(compressedState);
+        const tok = b64uEncode(jsonString);
+        shareUrl = baseUrl + '#x=' + tok;
+      }
+      
+      console.log('Sharing URL:', shareUrl);
+      
+      // استخدم Clipboard API إذا كان متاحاً
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        showToast('✓ تم نسخ رابط المشاركة إلى الحافظة');
+      } else {
+        // طريقة بديلة للمتصفحات القديمة
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) {
+            showToast('✓ تم نسخ رابط المشاركة إلى الحافظة');
+          } else {
+            throw new Error('فشل النسخ');
+          }
+        } catch (err) {
+          // إذا فشل النسخ، اعرض الرابط للمستخدم لنسخه يدوياً
+          showToast('فشل النسخ التلقائي. الرابط: ' + shareUrl);
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+    } catch(err) {
+      console.error('Share error:', err);
+      showToast('❌ فشل نسخ الرابط. حاول مرة أخرى.');
     }
   }
 
@@ -1082,7 +1144,10 @@ function boot(){
     showToast('✓ تم مسح المسار');
   }, {passive:true});
 
-  if(btnShare) btnShare.addEventListener('click', copyShareLink, {passive:true});
+  // 🔧 إصلاح: إضافة حدث النقر لزر المشاركة
+  if(btnShare) {
+    btnShare.addEventListener('click', copyShareLink, {passive:true});
+  }
 
   if(btnAdd) btnAdd.addEventListener('click', ()=>{
     if(shareMode) return;
