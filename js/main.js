@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v11.11 (with map type selector) */
+/* Diriyah Security Map – v11.11 (fixed regex & map type selector) */
 'use strict';
 /* ---------------- Robust init ---------------- */
 let __BOOTED__ = false;
@@ -86,8 +86,7 @@ const toHex=(c)=>{
   const [r,g,b]=[+m[1],+m[2],+m[3]];
   return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 };
-const parseRecipients=t=>String(t).split(/\r?
-/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean);
+const parseRecipients=t=>String(t).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean);
 let persistTimer=null;
 const persist=()=>{ if(shareMode) return; clearTimeout(persistTimer); persistTimer=setTimeout(()=>writeShare(buildState()),180); };
 function flushPersist(){ if(shareMode) return; clearTimeout(persistTimer); writeShare(buildState()); }
@@ -1107,4 +1106,3 @@ function buildState(){
     r
   };
 }
-
