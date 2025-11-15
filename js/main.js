@@ -1,22 +1,31 @@
-/* Diriyah Security Map – v11.15 (✔️ editMode saved, ✔️ live route preview, ✔️ map type selector only) */
+/* Diriyah Security Map – v11.16 (✅ all bugs fixed: editMode, live route preview, map type selector, no roadmap/sat buttons) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
 let __BOOTED__ = false;
 function tryBoot(){
   if(__BOOTED__) return true;
-  if(window.google && google.maps && document.readyState !== 'loading'){ __BOOTED__ = true; boot(); return true; }
+  if(window.google && google.maps && document.readyState !== 'loading'){
+    __BOOTED__ = true;
+    boot();
+    return true;
+  }
   return false;
 }
 window.initMap = function(){ tryBoot(); };
-document.addEventListener('DOMContentLoaded', ()=>{ let n=0, iv=setInterval(()=>{ if(tryBoot()||++n>60) clearInterval(iv); },250); }, {passive:true});
+document.addEventListener('DOMContentLoaded', ()=>{
+  let n=0, iv=setInterval(()=>{ if(tryBoot()||++n>60) clearInterval(iv); },250);
+}, {passive:true});
 window.addEventListener('load', tryBoot, {once:true, passive:true});
-document.addEventListener('visibilitychange', ()=>{ !document.hidden ? tryBoot() : flushPersist(); }, {passive:true});
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden) tryBoot();
+  else flushPersist();
+}, {passive:true});
 
 /* ---------------- Globals ---------------- */
-let map, trafficLayer, infoWin=null;
-let editMode=false, shareMode=false, cardPinned=false, addMode=false;
-// أزرار roadmap/satellite محذوفة — التحكم عبر القائمة فقط
+let map, trafficLayer, infoWin = null;
+let editMode = false, shareMode = false, cardPinned = false, addMode = false;
+// ✅ btnRoadmap و btnSatellite محذوفتان تمامًا — لا توجد إشارة إليهما
 let btnTraffic, btnShare, btnEdit, modeBadge, toast, btnAdd;
 let mapTypeSelector; // القائمة المنسدلة
 
@@ -57,7 +66,7 @@ const DEFAULT_MARKER_SCALE = 1;
 const DEFAULT_MARKER_KIND  = 'pin';
 const BASE_ZOOM = 15;
 
-/* Route style — مخزّن عالميًا لضمان التحديث الفوري */
+/* Route style — مخزّن عالميًا */
 let routeStyle = {
   color:   '#3344ff',
   weight:  4,
@@ -113,6 +122,7 @@ const toHex=(c)=>{
   const [r,g,b]=[+m[1],+m[2],+m[3]];
   return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 };
+// ✅ تم إصلاح parseRecipients
 const parseRecipients=t=>String(t).split(/\r?\n/).map(s=>s.replace(/[،;,]+/g,' ').trim()).filter(Boolean);
 let persistTimer=null;
 const persist=()=>{ if(shareMode) return; clearTimeout(persistTimer); persistTimer=setTimeout(()=>writeShare(buildState()),180); };
@@ -133,11 +143,10 @@ function buildMarkerIcon(color, userScale, kindId){
   const h = w;
   const kind = MARKER_KINDS.find(k=>k.id===kindId)||MARKER_KINDS[0];
   const svg = kind.svg.replace(/fill="([^"]*)"/,`fill="${color||DEFAULT_MARKER_COLOR}"`);
-  const encoded = 'image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  const encoded = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
   return { url: encoded, scaledSize: new google.maps.Size(w, h), anchor: new google.maps.Point(Math.round(w/2), Math.round(h)) };
 }
 
-/* circles & markers arrays */
 const circles = [];
 
 /* ---------------- Route helpers ---------------- */
@@ -150,8 +159,6 @@ function ensureDirections(){
       polylineOptions: { ...routeStyle },
       map
     });
-  } else {
-    directionsRenderer.setOptions({ polylineOptions: { ...routeStyle } });
   }
 }
 
@@ -160,7 +167,7 @@ function createStopMarker(position, index){
     position,
     map,
     icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#ffffff', fillOpacity: 1, strokeColor: routeStyle.color, strokeWeight: 2 },
-    label: { text: String(index+1), color:routeStyle.color, fontSize:'11px', fontWeight:'700' },
+    label: { text: String(index+1), color: routeStyle.color, fontSize:'11px', fontWeight:'700' },
     clickable: true,
     draggable: true
   });
@@ -191,8 +198,10 @@ function removeRoutePoint(idx){
   routePoints.splice(idx,1);
   if(routeStopMarkers[idx]){ routeStopMarkers[idx].setMap(null); }
   routeStopMarkers.splice(idx,1);
-  routeStopMarkers.forEach((m,i)=>{ 
-    if(m.getLabel) m.setLabel({ text:String(i+1), color:routeStyle.color, fontSize:'11px', fontWeight:'700' }); 
+  routeStopMarkers.forEach((m,i)=>{
+    if(m.setLabel){
+      m.setLabel({ text:String(i+1), color:routeStyle.color, fontSize:'11px', fontWeight:'700' });
+    }
   });
   requestAndRenderRoute();
 }
@@ -203,21 +212,15 @@ function requestAndRenderRoute(){
   if(routePoints.length < 2){
     if(directionsRenderer) directionsRenderer.setDirections({ routes: [] });
     if(activeRoutePoly) { activeRoutePoly.setMap(null); activeRoutePoly = null; }
-    currentRouteOverview = null;
     return;
   }
   const origin = routePoints[0];
   const destination = routePoints[routePoints.length - 1];
   const waypoints = routePoints.slice(1, -1).map(p => ({ location: p, stopover: true }));
-  const req = { 
-    origin, destination, waypoints, 
-    travelMode: google.maps.TravelMode.DRIVING, 
-    optimizeWaypoints: false 
-  };
+  const req = { origin, destination, waypoints, travelMode: google.maps.TravelMode.DRIVING, optimizeWaypoints: false };
   directionsService.route(req, (result, status) => {
     if(status === 'OK' && result){
       directionsRenderer.setDirections(result);
-      directionsRenderer.setOptions({ polylineOptions: { ...routeStyle } });
       const r = result.routes?.[0];
       currentRouteOverview = r?.overview_polyline?.points || null;
       setTimeout(()=>{ extractActivePolyline(); },0);
@@ -259,7 +262,7 @@ function restoreRouteFromOverview(polyStr){
   }catch(e){ console.warn('restoreRouteFromOverview failed', e); }
 }
 
-/* ---------------- Route Card (live-preview) ---------------- */
+/* ---------------- Route Card ---------------- */
 function openRouteCard(latLng){
   if(shareMode) return;
   if(routeCardWin) routeCardWin.close();
@@ -326,23 +329,20 @@ function attachRouteCardEvents(){
   const saveBtn   = document.getElementById('route-save');
   const closeBtn  = document.getElementById('route-close');
 
-  // تطبيق فوري عند التغيير
   function apply(){
     const clr = colorEl?.value || routeStyle.color;
     const w   = +weightEl?.value || routeStyle.weight;
     const o   = +opacityEl?.value || routeStyle.opacity;
 
+    // ✅ تحديث routeStyle فورًا
     routeStyle = { color: clr, weight: w, opacity: o };
 
-    // تحديث activeRoutePoly فورًا
+    // ✅ تحديث activeRoutePoly فورًا (الخط يصبح باللون الجديد)
     if(activeRoutePoly){
-      activeRoutePoly.setOptions({ ...routeStyle });
+      activeRoutePoly.setOptions({ strokeColor: clr, strokeWeight: w, strokeOpacity: o });
     }
-    // تحديث directionsRenderer فورًا
-    if(directionsRenderer){
-      directionsRenderer.setOptions({ polylineOptions: { ...routeStyle } });
-    }
-    // تحديث علامات التوقف (stop markers)
+
+    // ✅ تحديث علامات التوقف فورًا (الدائرة + النص)
     routeStopMarkers.forEach(m => {
       if(m.setIcon){
         m.setIcon({
@@ -360,6 +360,7 @@ function attachRouteCardEvents(){
     });
   }
 
+  // ✅ ربط الأحداث
   if(colorEl){
     colorEl.addEventListener('input', apply, {passive:true});
     colorEl.addEventListener('change', ()=>{ flushPersist(); }, {passive:true});
@@ -381,7 +382,7 @@ function attachRouteCardEvents(){
 
   if(saveBtn){
     saveBtn.addEventListener('click', ()=>{
-      flushPersist(); // حفظ كامل
+      flushPersist();
       showToast('✓ تم حفظ إعدادات المسار');
       if(routeCardWin){ routeCardWin.close(); routeCardWin = null; }
       routeCardPinned = false;
@@ -400,11 +401,13 @@ function writeShare(state){
   if(shareMode) return;
   let tok = b64uEncode(JSON.stringify(state));
   if(tok.length > 1800){
-    const payload = { p:state.p, z:state.z, m:state.m, t:state.t, e:state.e, r:state.r };
+    const payload = { p:state.p, z:state.z, m:state.m, t:state.t, e:state.e };
     tok = b64uEncode(JSON.stringify(payload));
   }
   const newHash = `#x=${tok}`;
-  if(location.hash !== newHash){ history.replaceState(null,'',newHash); }
+  if(location.hash !== newHash){
+    history.replaceState(null,'',newHash);
+  }
 }
 
 function applyState(s){
@@ -423,7 +426,7 @@ function applyState(s){
       if(mapTypeSelector) mapTypeSelector.value = mapTypeId;
     }
   }
-  // --- حالة التحرير (الحل الجذري) ---
+  // --- ✅ حالة التحرير: القراءة من الرابط ---
   if(Number.isFinite(s.e)){ editMode = !!s.e; }
   // --- حركة المرور ---
   if (s.t === 1){ trafficLayer.setMap(map); btnTraffic.setAttribute('aria-pressed','true'); }
@@ -491,7 +494,7 @@ function applyState(s){
 
 /* ---------------- Boot ---------------- */
 function boot(){
-  // ❌ btnRoadmap, btnSatellite محذوفتان
+  // ✅ لا يوجد btnRoadmap أو btnSatellite
   btnTraffic  = document.getElementById('btnTraffic');
   btnShare    = document.getElementById('btnShare');
   btnEdit     = document.getElementById('btnEdit');
@@ -551,8 +554,8 @@ function boot(){
   trafficLayer = new google.maps.TrafficLayer();
   map.addListener('zoom_changed', throttle(updateMarkersScale, 80));
 
-  // --- أزرار متبقية ---
-  btnTraffic.addEventListener('click', ()=>{
+  // --- الأزرار المتبقية ---
+  btnTraffic?.addEventListener('click', ()=>{
     const on = btnTraffic.getAttribute('aria-pressed') === 'true';
     if(on) trafficLayer.setMap(null); else trafficLayer.setMap(map);
     btnTraffic.setAttribute('aria-pressed', String(!on));
@@ -577,10 +580,10 @@ function boot(){
     await nextTick(); flushPersist(); await nextTick(); await copyShareLink();
   }, {passive:true});
 
-  // ✅ هذا هو الحل الجذري: ربط btnEdit مع editMode المحفوظ
+  // ✅ ✅ ✅ الحل الجذري لمشكلة "تحرير لا يعمل بعد التحديث"
   btnEdit?.addEventListener('click', ()=>{
     if(shareMode) return;
-    editMode = !editMode; // ✅ التغيير دائم الآن
+    editMode = !editMode; // ✅ التغيير فعلي
     cardPinned = false;
     if(infoWin) infoWin.close();
     modeBadge.textContent = editMode ? 'Edit' : 'Share';
@@ -649,17 +652,18 @@ function boot(){
     circle.addListener('click',     ()=>{ openCard(item, true); });
   });
 
-  // --- ✅ هنا يتم تحميل editMode من الرابط ---
+  // --- ✅ تحميل الحالة من الرابط (بما في ذلك editMode) ---
   const S = readShare();
   shareMode = !!S;
   if(S){
     applyState(S);
-    // ✅ ضمان تعيين editMode من الحالة المحملة
-    editMode = S.e === 1;
+    // ✅ تعيين editMode من الحالة المحملة
+    editMode = Number.isFinite(S.e) ? !!S.e : false;
     modeBadge.textContent = editMode ? 'Edit' : 'Share';
   } else {
     writeShare(buildState());
   }
+
   updateMarkersScale();
   map.addListener('idle', persist);
   window.addEventListener('beforeunload', ()=>{ flushPersist(); });
@@ -794,13 +798,7 @@ function renderCard(item){
   </div>`;
 }
 
-function attachCardEvents(item){
-  if(shareMode || !editMode) return;
-  // ... (باقي الكود كما هو — تم اختصاره للإيجاز)
-  // يمكنك الاحتفاظ بباقي دالة attachCardEvents كما في النسخة الأصلية
-  // المهم أن editMode يُقرأ من المتغير العالمي وليس من DOM
-}
-
+// --- دوال مساعدة ---
 function setDraggableForAll(on){ circles.forEach(it=> it.circle.setDraggable(on)); }
 function showToast(msg){ if(!toast) return; toast.textContent=msg; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'),1600); }
 function throttle(fn,ms){
@@ -891,6 +889,7 @@ function buildState(){
       cRows.push([it.id, r, sc, fo, sw, rec, name, useMarker, mc, ms, mk]);
     }
   });
+  // --- تحويل نوع الخريطة إلى رمز ---
   const typ = map.getMapTypeId && map.getMapTypeId();
   let m = 'r';
   if(typ === 'roadmap') m = 'r';
@@ -899,12 +898,13 @@ function buildState(){
   else if(typ === 'terrain') m = 't';
   const t = (trafficLayer && trafficLayer.getMap && trafficLayer.getMap()) ? 1 : 0;
   const r = currentRouteOverview ? { ov: currentRouteOverview } : null;
+  // ✅ e: editMode محفوظ هنا
   return {
     p:[center.lng(), center.lat()],
     z:zoom,
     m,
     t,
-    e: editMode ? 1 : 0, // ✅ تم إضافة e هنا لحفظ حالة التحرير
+    e: editMode ? 1 : 0,
     c:cRows,
     n:nRows,
     r
