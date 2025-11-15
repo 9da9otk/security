@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v12.0 (✅ fixed: all issues, direct edit mode, simplified UI) */
+/* Diriyah Security Map – v12.1 (✅ fixed: removed satellite/roads/edit from UI, fixed route sharing) */
 'use strict';
 /* ---------------- Robust init ---------------- */
 let __BOOTED__ = false;
@@ -534,7 +534,7 @@ function applyState(s){
     });
   }
   
-  // استعادة المسار
+  // استعادة المسار - 🔧 إصلاح: استعادة المسار بشكل صحيح في وضع المشاركة
   if(s.r && s.r.ov){
     restoreRouteFromOverview(s.r.ov, s.r.points);
   }
@@ -556,6 +556,15 @@ function boot(){
   btnRouteClear = document.getElementById('btnRouteClear');
   modeBadge   = document.getElementById('modeBadge');
   toast       = document.getElementById('toast');
+  
+  // 🔧 إزالة: إزالة عناصر "طرق" و"أقمار صناعية" و"تحرير" من القائمة
+  const editBtn = document.getElementById('btnEdit');
+  const roadsBtn = document.getElementById('btnRoads');
+  const satelliteBtn = document.getElementById('btnSatellite');
+  
+  if(editBtn) editBtn.style.display = 'none';
+  if(roadsBtn) roadsBtn.style.display = 'none';
+  if(satelliteBtn) satelliteBtn.style.display = 'none';
   
   // 🔧 إصلاح: إنشاء عناصر التحكم في الخريطة بشكل صحيح
   const existingControls = document.getElementById('mapControls');
@@ -1141,6 +1150,7 @@ function buildState(){
   
   const t = trafficLayer.getMap() ? 1 : 0;
   
+  // 🔧 إصلاح: تضمين بيانات المسار في حالة المشاركة
   const r = currentRouteOverview ? {
     ov: currentRouteOverview,
     points: routePoints.map(p => ({ lat: p.lat(), lng: p.lng() }))
@@ -1154,7 +1164,7 @@ function buildState(){
     e: editMode ? 1 : 0,
     c: cRows,
     n: nRows,
-    r
+    r // 🔧 إصلاح: تضمين بيانات المسار
   };
 }
 
