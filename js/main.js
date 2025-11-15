@@ -1,4 +1,3 @@
-```javascript
 /* Diriyah Security Map – v11.16 (✅ all bugs fixed: editMode, live route preview, map type selector, no roadmap/sat buttons) */
 'use strict';
 
@@ -911,4 +910,5 @@ function buildState(){
     r
   };
 }
+
 
