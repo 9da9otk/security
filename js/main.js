@@ -1,4 +1,3 @@
-سأقدم لك الكود الكامل مع جميع الدوال المساعدة:
 
 ```javascript
 /* Diriyah Security Map – v12.8 (✅ fixed: complete code with all helper functions) */
@@ -1425,3 +1424,4 @@ function attachCardEvents(item){
   });
   if(markerKindEl) markerKindEl.addEventListener('change', ()=>{ 
     item.meta.markerKind = markerKindEl.value;
+
