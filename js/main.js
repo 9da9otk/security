@@ -1,5 +1,3 @@
-إليك الكود المعدل مع إصلاح زر المشاركة وإضافة بعض التحسينات على خيارات تحرير المسار. لقد قمت بإضافة التعليقات لتوضيح التعديلات التي تم إجراؤها:
-
 ```javascript
 /* Diriyah Security Map – v11.16 (✅ all bugs fixed: editMode, live route preview, map type selector, no roadmap/sat buttons) */
 'use strict';
@@ -913,3 +911,4 @@ function buildState(){
     r
   };
 }
+
