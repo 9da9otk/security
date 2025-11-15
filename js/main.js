@@ -1,7 +1,12 @@
-/* Diriyah Security Map – v11.16 (✅ all bugs fixed: editMode, live route preview, map type selector, no roadmap/sat buttons) */
+لقد وجدت أن السطر 109 في الكود يحتوي على تعليق يسبب مشكلة. عادةً، التعليقات التي تبدأ بـ `/*` وقبلها مباشرةً سطر من الكود يمكن أن تسبب مشكلات عندما يكون هناك خطأ في التنسيق أو وجود عنصر غير متوقع. 
+
+لإصلاح الرسالة الخاصة بك، سأقوم بتبسيط التعليقات قليلاً ثم أعد تنسيق الكود بالكامل. إليك النسخة المعدلة:
+
+```javascript
+/* Diriyah Security Map – v11.16 */
 'use strict';
 
-/* ---------------- Robust init ---------------- */
+/* ----------------- Robust init ----------------- */
 let __BOOTED__ = false;
 function tryBoot(){
   if(__BOOTED__) return true;
@@ -22,7 +27,7 @@ document.addEventListener('visibilitychange', ()=>{
   else flushPersist();
 }, {passive:true});
 
-/* ---------------- Globals ---------------- */
+/* ----------------- Globals ----------------- */
 let map, trafficLayer, infoWin = null;
 let editMode = false, shareMode = false, cardPinned = false, addMode = false;
 let btnTraffic, btnShare, btnEdit, modeBadge, toast, btnAdd;
@@ -115,7 +120,7 @@ function meetSvg(fill){ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 /* utilities */
 const clamp=(x,min,max)=>Math.min(max,Math.max(min,x));
 const escapeHtml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'<').replace(/>/g,'>').replace(/"/g,'&quot;');
-const toHex=(c)=>{
+const toHex=(c)=> {
   if(!c) return DEFAULT_COLOR;
   if(/^#/.test(c)) return c;
   const m=c&&c.match(/rgba?\s*\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
@@ -706,9 +711,11 @@ function openCard(item, pin = true){
 function renderCard(item){
   const c=item.circle, meta=item.meta;
   const names=Array.isArray(meta.recipients)?meta.recipients:[];
+
   const namesHtml = names.length
     ? `<ol style="margin:6px 0 0; padding-inline-start:20px;">${names.map(n=>`<li>${escapeHtml(n)}</li>`).join('')}</ol>`
     : `<div style="font-size:12px;color:#666">لا توجد أسماء مضافة</div>`;
+  
   const center=c.getCenter();
   const radius=Math.round(c.getRadius());
   const color =toHex(c.get('strokeColor')||DEFAULT_COLOR);
@@ -719,6 +726,7 @@ function renderCard(item){
   const markerScale = Number.isFinite(meta.markerScale) ? meta.markerScale : DEFAULT_MARKER_SCALE;
   const markerKind  = meta.markerKind || DEFAULT_MARKER_KIND;
   const optionsHtml = MARKER_KINDS.map(k=>`<option value="${k.id}" ${k.id===markerKind?'selected':''}>${k.label}</option>`).join('');
+  
   return `
   <div id="iw-root" dir="rtl" style="min-width:360px;max-width:520px">
     <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
@@ -726,19 +734,12 @@ function renderCard(item){
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
         <img src="img/diriyah-logo.png" alt="Diriyah" style="width:50px;height:50px;object-fit:contain;">
         <div style="flex:1 1 auto; min-width:0">
-          ${(!shareMode && editMode) ? `
-            <input id="ctl-name" value="${escapeHtml(meta.name||'')}" placeholder="اسم الموقع"
-              style="width:100%;border:1px solid #ddd;border-radius:10px;padding:6px 8px;font-weight:700;font-size:16px;">
-          ` : `
-            <div style="font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(meta.name)}</div>
-          `}
+          ${(!shareMode && editMode) ? ` <input id="ctl-name" value="${escapeHtml(meta.name||'')}" placeholder="اسم الموقع" style="width:100%;border:1px solid #ddd;border-radius:10px;padding:6px 8px;font-weight:700;font-size:16px;"> `
+             : ` <div style="font-weight:800;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(meta.name)}</div> ` }
         </div>
-        ${(!shareMode && editMode) ? `<button id="btn-card-share" title="نسخ الرابط"
-            style="margin-inline-start:6px;border:1px solid #ddd;background:#fff;border-radius:10px;padding:4px 8px;cursor:pointer;">نسخ الرابط</button>` : ``}
+        ${(!shareMode && editMode) ? ` <button id="btn-card-share" title="نسخ الرابط" style="margin-inline-start:6px;border:1px solid #ddd;background:#fff;border-radius:10px;padding:4px 8px;cursor:pointer;">نسخ الرابط</button>` : ``}
       </div>
-      <div style="font-size:12px;color:#666;margin-bottom:6px">
-        الإحداثيات: ${center.lat().toFixed(6)}, ${center.lng().toFixed(6)}
-      </div>
+      <div style="font-size:12px;color:#666;margin-bottom:6px"> الإحداثيات: ${center.lat().toFixed(6)}, ${center.lng().toFixed(6)} </div>
       <div style="border-top:1px dashed #e7e7e7; padding-top:8px;">
         <div style="font-weight:700; margin-bottom:4px;">المستلمون:</div>
         ${namesHtml}
@@ -777,8 +778,7 @@ function renderCard(item){
               </select>
             </div>
             <div class="field"><label style="font-size:12px;color:#333;white-space:nowrap;">لون الأيقونة:</label>
-              <input id="ctl-marker-color" type="color" value="${markerColor}"
-                     style="width:38px;height:28px;border:none;background:transparent;padding:0"></div>
+              <input id="ctl-marker-color" type="color" value="${markerColor}" style="width:38px;height:28px;border:none;background:transparent;padding:0"></div>
             <div class="field"><label style="font-size:12px;color:#333;white-space:nowrap;">حجم الأيقونة:</label>
               <input id="ctl-marker-scale" type="range" min="0.6" max="2.4" step="0.1" value="${markerScale}" style="width:100%;">
               <span id="lbl-marker-scale" style="font-size:12px;color:#666">${markerScale.toFixed(1)}</span></div>
@@ -910,5 +910,4 @@ function buildState(){
     r
   };
 }
-
-
+```
