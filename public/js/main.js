@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v16.1 (Fix marker icon data URI) */
+/* Diriyah Security Map – v16.0 (Express backend + is.gd + interactive share + clean + glass cards + fixes) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -437,11 +437,7 @@ function buildMarkerIcon(color, userScale, kindId) {
 
   const kind = MARKER_KINDS.find(k => k.id === kindId) || MARKER_KINDS[0];
   const svg = kind.svg.replace(/fill="([^"]*)"/, `fill="${color || DEFAULT_MARKER_COLOR}"`);
-  
-  // ******** START OF FIX (v16.1) ********
-  // Added 'data:' prefix
-  const encoded = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
-  // ******** END OF FIX (v16.1)  ********
+  const encoded = 'image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
 
   return {
     url: encoded,
@@ -1414,7 +1410,7 @@ async function copyShareLink() {
 // --- THE MAIN BOOT FUNCTION (Previously missing) ---
 
 function boot() {
-  console.log('Booting Diriyah Map v16.1'); // Updated version
+  console.log('Booting Diriyah Map v16.0');
 
   const mapEl = document.getElementById('map');
   if (!mapEl) return;
@@ -1458,7 +1454,7 @@ function boot() {
 
   // --- Get UI Elements ---
   toast = document.getElementById('toast');
-  modeBadge = document.getElementById('mode-badge'); // Corrected ID
+  modeBadge = document.getElementById('mode-badge');
   
   btnTraffic = document.getElementById('btn-traffic');
   btnShare = document.getElementById('btn-share');
