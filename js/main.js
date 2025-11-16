@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v13.1 (✅ fixed: share btn logic, circle edit mode) */
+/* Diriyah Security Map – v13.2 (✅ fixed: all top buttons, final share logic) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -161,14 +161,12 @@ const persist=()=>{ 
     writeShare(buildState());
   },300); 
 };
-// 🔧 تعديل: دالة flushPersist الآن تُرجع الرابط لضمان عمل زر المشاركة
 function flushPersist(){ 
   if(shareMode) return location.href; 
   clearTimeout(persistTimer); 
-  return writeShare(buildState()); // إرجاع الرابط المحدث
+  return writeShare(buildState());
 }
 
-// 🔧 جديد: دالة لتحويل المسافة إلى نص مقروء
 function formatDistance(meters) {
   if (meters < 1000) {
     return `${Math.round(meters)} متر`;
@@ -177,7 +175,6 @@ function formatDistance(meters) {
   }
 }
 
-// 🔧 جديد: دالة لتحويل الوقت إلى نص مقروء
 function formatDuration(seconds) {
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) {
@@ -205,10 +202,8 @@ function compressState(state) {
   if(state.t === 1) compressed.t = 1;
   if(state.e === 1) compressed.e = 1;
   
-  // 🔧 إصلاح: حفظ أسماء المستلمين بشكل صحيح
   if(state.c && state.c.length > 0) {
     compressed.c = state.c.map(circle => {
-      // البحث عن العنصر المناسب في المصفوفة بناءً على الهيكل الصحيح
       const item = circles.find(c => c.id === circle[0]);
       const recipients = item ? item.meta.recipients.join('~') : '';
       return [
@@ -216,7 +211,7 @@ function compressState(state) {
         circle[1], // radius
         circle[2]?.replace('#','') || 'ff0000', // color
         circle[3] || '', // name
-        recipients // recipients - الإصلاح هنا
+        recipients // recipients
       ];
     });
   }
@@ -232,12 +227,11 @@ function compressState(state) {
         circle[3] || '', // name
         circle[4] || 20, // radius
         circle[5]?.replace('#','') || 'ff0000', // color
-        recipients // recipients - الإصلاح هنا
+        recipients // recipients
       ];
     });
   }
   
-  // 🔧 إصلاح: حفظ إعدادات نمط المسار بشكل صحيح
   if(state.r && (state.r.ov || state.r.points)) {
     compressed.r = {
       ov: state.r.ov || '',
@@ -257,16 +251,10 @@ function compressState(state) {
   return compressed;
 }
 
-/* ------------------------------------------------------------------ */
-/* --- 🔧 تعديل: استخدام TextEncoder لترميز Base64 بكفاءة أكبر --- */
-/* ------------------------------------------------------------------ */
 function b64uEncode(s){ 
   try {
-    // 1. ترميز النص إلى بايتات UTF-8
     const utf8Bytes = new TextEncoder().encode(s);
-    // 2. تحويل البايتات إلى سلسلة نصية ثنائية
     const binaryString = String.fromCharCode.apply(null, utf8Bytes);
-    // 3. ترميز السلسلة الثنائية باستخدام btoa
     const b = btoa(binaryString);
     return b.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
   } catch(e) {
@@ -275,21 +263,15 @@ function b64uEncode(s){ 
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* --- 🔧 تعديل: استخدام TextDecoder لفك ترميز Base64 بكفاءة أكبر --- */
-/* ------------------------------------------------------------------ */
 function b64uDecode(t){
   try{ 
     t=String(t||'').replace(/[^A-Za-z0-9\-_]/g,''); 
     const pad=t.length%4 ? '='.repeat(4-(t.length%4)) : ''; 
-    // 1. فك ترميز Base64URL
     const binaryString = atob(t.replace(/-/g,'+').replace(/_/g,'/')+pad);
-    // 2. تحويل السلسلة الثنائية إلى مصفوفة بايتات
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    // 3. فك ترميز بايتات UTF-8 إلى نص
     return new TextDecoder().decode(bytes);
   }catch(e){ 
     console.error('Base64 decoding error:', e);
@@ -297,16 +279,13 @@ function b64uDecode(t){
   } 
 }
 
-/* ------------------------------------------------------------------ */
-/* --- 🔧 تعديل: قراءة بيانات المشاركة من ?x= بدلاً من #x= --- */
-/* ------------------------------------------------------------------ */
 function readShare(){ 
   const params = new URLSearchParams(location.search);
-  const h = params.get('x'); // القراءة من متغير 'x'
+  const h = params.get('x');
   if(!h) return null; 
   
   try{
-    const decoded = b64uDecode(h); // لا حاجة لـ .slice(3)
+    const decoded = b64uDecode(h);
     if(!decoded) return null;
     const state = JSON.parse(decoded);
     console.log('✅ Loaded shared state from ?x=:', state);
@@ -373,6 +352,10 @@ function clearRouteVisuals(){
   routePoints = [];
   routeDistance = 0;
   routeDuration = 0;
+  if(btnRoute.getAttribute('aria-pressed') === 'true') {
+    toggleRouteMode(); // Turn off route mode if on
+  }
+  if(btnRouteClear) btnRouteClear.style.display = 'none';
   persist();
 }
 
@@ -387,6 +370,7 @@ function addRoutePoint(latLng){
   } else {
     persist();
   }
+  if(btnRouteClear) btnRouteClear.style.display = 'block';
 }
 
 function removeRoutePoint(idx){
@@ -433,7 +417,6 @@ function requestAndRenderRoute(){
       const r = result.routes?.[0];
       currentRouteOverview = r?.overview_polyline?.points || null;
       
-      // 🔧 جديد: استخراج المسافة والوقت من النتيجة
       if(r?.legs && r.legs.length > 0) {
         routeDistance = r.legs.reduce((total, leg) => total + (leg.distance?.value || 0), 0);
         routeDuration = r.legs.reduce((total, leg) => total + (leg.duration?.value || 0), 0);
@@ -468,7 +451,6 @@ function extractActivePolyline(){
     clickable: true
   });
   
-  // 🔧 إصلاح: إضافة حدث النقر على الخط لفتح إعدادات المسار
   activeRoutePoly.addListener('click', (e)=>{
     if(shareMode || !editMode) return;
     openRouteCard(e.latLng);
@@ -487,7 +469,6 @@ function extractActivePolyline(){
   flushPersist();
 }
 
-// 🔧 جديد: دالة لعرض كرت معلومات المسار
 function openRouteInfoCard(latLng, pinned = false){
   if(!routeInfoWin) {
     routeInfoWin = new google.maps.InfoWindow({
@@ -551,7 +532,6 @@ function openRouteInfoCard(latLng, pinned = false){
   }
 }
 
-// 🔧 إصلاح كامل: تطبيق إعدادات النمط بشكل صحيح عند استعادة المسار
 function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleData = null, routeDistanceData = 0, routeDurationData = 0){
   console.log('🔄 Restoring route:', { 
     hasPolyStr: !!polyStr, 
@@ -570,7 +550,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
   try{
     clearRouteVisuals();
     
-    // 🔧 إصلاح: تطبيق إعدادات النمط أولاً قبل إنشاء أي عناصر
     if(routeStyleData){
       routeStyle = {
         color: routeStyleData.color || routeStyle.color,
@@ -579,7 +558,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
       };
     }
     
-    // 🔧 جديد: استعادة معلومات المسافة والوقت
     routeDistance = routeDistanceData || 0;
     routeDuration = routeDurationData || 0;
     
@@ -588,7 +566,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
       console.log('✅ Restored route points:', routePoints.length);
     }
     
-    // 🔧 إصلاح: إنشاء المسار مع تطبيق النمط مباشرة
     if(polyStr) {
       try {
         const path = google.maps.geometry.encoding.decodePath(polyStr);
@@ -605,7 +582,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
         
         console.log('✅ Restored route polyline with points:', path.length);
         
-        // 🔧 إصلاح: إضافة حدث النقر على الخط لفتح إعدادات المسار
         activeRoutePoly.addListener('click', (e)=>{
           if(shareMode || !editMode) return;
           openRouteCard(e.latLng);
@@ -625,7 +601,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
       }
     }
     
-    // 🔧 إصلاح: إنشاء علامات النقاط مع تطبيق النمط
     if(routePoints.length > 0){
       routeStopMarkers = routePoints.map((pos, i) => {
         const m = new google.maps.Marker({
@@ -643,7 +618,7 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
             text: String(i+1), 
             color: routeStyle.color, 
             fontSize:'11px', 
-            fontWeight:'700' 
+            fontWeight: '700' 
           },
           clickable: true,
           draggable: !shareMode
@@ -659,7 +634,6 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
       console.log('✅ Created route markers:', routeStopMarkers.length);
     }
     
-    // 🔧 إصلاح: تحديث directionsRenderer بالنمط الجديد
     if(directionsRenderer){
       directionsRenderer.setOptions({
         polylineOptions: {
@@ -668,6 +642,10 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
           strokeOpacity: routeStyle.opacity
         }
       });
+    }
+    
+    if(routePoints.length > 0) {
+      if(btnRouteClear) btnRouteClear.style.display = 'block';
     }
     
     console.log('✅ Route restoration completed successfully');
@@ -716,7 +694,7 @@ function renderRouteCard(){
         <div style="flex:1;font-weight:800;font-size:16px;">إعدادات المسار</div>
       </div>
       
-            <div style="background:rgba(0,0,0,0.03); border-radius:12px; padding:12px; margin-bottom:12px;">
+      <div style="background:rgba(0,0,0,0.03); border-radius:12px; padding:12px; margin-bottom:12px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px; text-align:center;">
           <div>
             <div style="font-size:11px;color:#666;margin-bottom:2px;">المسافة</div>
@@ -762,7 +740,6 @@ function attachRouteCardEvents(){
     const o   = +opacityEl?.value || routeStyle.opacity;
     routeStyle = { color: clr, weight: w, opacity: o };
     
-    // 🔧 إصلاح: تطبيق النمط على جميع عناصر المسار
     if(activeRoutePoly){
       activeRoutePoly.setOptions({ 
         strokeColor: clr, 
@@ -816,11 +793,8 @@ function attachRouteCardEvents(){
 
 /* ---------------- State Management ---------------- */
 
-/* ------------------------------------------------------------------ */
-/* --- 🔧 تعديل: دالة writeShare الآن تُرجع الرابط --- */
-/* ------------------------------------------------------------------ */
 function writeShare(state){
-  if(shareMode) return location.href; // لا تحفظ في وضع المشاركة
+  if(shareMode) return location.href;
   
   const compressedState = compressState(state);
   const jsonString = JSON.stringify(compressedState);
@@ -833,13 +807,13 @@ function writeShare(state){
     history.replaceState(null, '', newUrlPath); 
   }
   
-  // إرجاع الرابط الكامل
   return `${location.origin}${newUrlPath}`;
 }
 
 
 function applyState(s){
-  if(!s) return;
+  // 🔧 تعديل: إذا كانت الحالة فارغة، قم بإنشاء كائن افتراضي
+  if(!s) s = {}; 
   
   console.log('🔄 Applying state:', s);
   
@@ -870,10 +844,13 @@ function applyState(s){
   
   editMode = !shareMode;
   
-  // 🔧 إصلاح: تطبيق إعدادات الدوائر مع أسماء المستلمين
+  // 🔧 تعديل: هذا اللوب سيعمل الآن حتى لو s.c غير موجود (في التحميل العادي)
+  const processedIds = new Set();
+  
   if(Array.isArray(s.c)){
     s.c.forEach(row=>{
       const [id, radius, color, name, recipients] = row;
+      processedIds.add(id);
       const it = circles.find(x => x.id === id);
       if(!it) return;
       
@@ -892,15 +869,22 @@ function applyState(s){
       
       applyShapeVisibility(it);
       it.circle.setDraggable(editMode && !it.fixed);
-      it.circle.setEditable(false); // 🔧 تعديل: إيقاف التحرير عند التحميل
+      it.circle.setEditable(false);
     });
   }
+  
+  // 🔧 تعديل: تأكد من أن الدوائر الثابتة التي لم يتم تعديلها هي أيضاً غير قابلة للتحرير
+  circles.forEach(it => {
+    if(it.fixed && !processedIds.has(it.id)){
+      it.circle.setEditable(false);
+    }
+  });
   
   if(Array.isArray(s.n)){
     s.n.forEach(row=>{
       const [id, la, ln, name, radius, color, recipients] = row;
       const it = circles.find(x => x.id === id);
-      if(!it) return;
+      if(!it) return; // Should not happen if loaded correctly
       
       const pos = {lat:la, lng:ln};
       it.marker.setPosition(pos);
@@ -921,11 +905,10 @@ function applyState(s){
       applyShapeVisibility(it);
       it.marker.setDraggable(editMode && !it.fixed);
       it.circle.setDraggable(editMode && !it.fixed);
-      it.circle.setEditable(false); // 🔧 تعديل: إيقاف التحرير عند التحميل
+      it.circle.setEditable(false);
     });
   }
   
-  // 🔧 إصلاح: استعادة المسار مع النمط والبيانات
   if(s.r && (s.r.ov || s.r.points)){
     const points = s.r.points ? s.r.points.map(p => ({ lat: p.lat, lng: p.lng })) : [];
     restoreRouteFromOverview(s.r.ov, points, s.r.style, s.r.distance, s.r.duration);
@@ -933,7 +916,6 @@ function applyState(s){
     clearRouteVisuals();
   }
   
-  // 🔧 جديد: ضمان إخفاء عناصر التحرير في وضع المشاركة
   if(shareMode){
     document.body.classList.add('share-mode');
     if(modeBadge) modeBadge.style.display = 'none';
@@ -952,42 +934,65 @@ function buildState(){
     z: map.getZoom(),
     m: (map.getMapTypeId()||'roadmap').slice(0,1),
     t: (trafficLayer && trafficLayer.getMap()) ? 1 : 0,
-    e: editMode ? 1 : 0,
-    c: [], // fixed circles
-    n: []  // new markers
+    c: [], // Circles with modifications
+    n: [], // New circles
+    r: null // Route data
   };
   
-  circles.forEach(it => {
-    const m = it.meta;
-    const c = it.circle;
-    const r = c.getRadius();
-    const clr = toHex(c.get('fillColor'));
+  circles.forEach(it=>{
+    if(!it.visible) return;
+    
+    const meta = it.meta;
+    const circleOptions = it.circle.getOptions();
+    const circleCenter = it.circle.getCenter();
+    const radius = Math.round(it.circle.getRadius());
+    const color = toHex(circleOptions.strokeColor);
+    const name = meta.name || '';
     
     if(it.fixed){
-      if(m.name !== it.defaultName || r !== DEFAULT_RADIUS || clr !== DEFAULT_COLOR){
-        s.c.push([ it.id, r, clr.slice(1), m.name ]);
+      // Only save fixed circles if radius/color/name was modified
+      const original = LOCATIONS.find(l => l.id === it.id);
+      const originalColor = toHex(DEFAULT_COLOR);
+      const originalRadius = DEFAULT_RADIUS;
+      
+      const isModified = (radius !== originalRadius) || (color !== originalColor) || (name !== original.name) || (meta.recipients.length > 0);
+      
+      if(isModified){
+        s.c.push([it.id, radius, color, name, meta.recipients]);
       }
     } else {
-      const pos = it.marker.getPosition();
+      // Save custom circles completely
       s.n.push([
         it.id,
-        Number(pos.lat().toFixed(6)),
-        Number(pos.lng().toFixed(6)),
-        m.name,
-        r,
-        clr.slice(1)
+        Number(circleCenter.lat().toFixed(6)),
+        Number(circleCenter.lng().toFixed(6)),
+        name,
+        radius,
+        color,
+        meta.recipients
       ]);
     }
   });
   
-  // 🔧 إصلاح: حفظ بيانات المسار
-  if(routePoints.length > 0) {
+  if(currentRouteOverview && routePoints.length > 1) {
     s.r = {
-      ov: currentRouteOverview || '',
-      points: routePoints.map(p => ({ lat: p.lat(), lng: p.lng() })),
-      style: routeStyle,
+      ov: currentRouteOverview,
+      points: routePoints.map(p => ({ lat: Number(p.lat().toFixed(6)), lng: Number(p.lng().toFixed(6)) })),
+      style: {
+        color: routeStyle.color,
+        weight: routeStyle.weight,
+        opacity: routeStyle.opacity
+      },
       distance: routeDistance,
       duration: routeDuration
+    };
+  } else if (routePoints.length > 0) {
+    // Save points even if polyline failed to calculate (e.g. initial load)
+    s.r = {
+      points: routePoints.map(p => ({ lat: Number(p.lat().toFixed(6)), lng: Number(p.lng().toFixed(6)) })),
+      style: routeStyle,
+      distance: 0,
+      duration: 0
     };
   } else {
     s.r = null;
@@ -996,533 +1001,554 @@ function buildState(){
   return s;
 }
 
-/* ---------------- InfoWindow Card ---------------- */
-function openCard(item){
-  if(infoWin) infoWin.close();
-  infoWin = new google.maps.InfoWindow({
-    content: renderCard(item),
-    position: item.marker.getPosition(),
-    maxWidth: 380,
-    pixelOffset: new google.maps.Size(0, -32) // Adjust for pin
-  });
-  infoWin.open({ map, anchor: item.marker });
-  cardPinned = true;
-  
-  // 🔧 تعديل: تفعيل التحرير عند فتح الكرت (فقط للدوائر غير الثابتة)
-  if(editMode && !item.fixed) {
-    item.circle.setEditable(true);
-  }
-  
-  google.maps.event.addListenerOnce(infoWin, 'domready', () => {
-    attachCardEvents(item);
-  });
-  
-  google.maps.event.addListenerOnce(infoWin, 'closeclick', ()=>{
-    cardPinned = false;
-    // 🔧 تعديل: إلغاء تفعيل التحرير عند إغلاق الكرت
-    item.circle.setEditable(false);
-    scheduleCardHide();
-  });
-}
 
-function showHoverCard(item){
-  if(cardPinned) return;
-  circleHovering = true;
-  clearTimeout(cardHideTimer);
-  
-  if(!infoWin) infoWin = new google.maps.InfoWindow({ maxWidth: 380, pixelOffset: new google.maps.Size(0, -32) });
-  
-  infoWin.setContent(renderCard(item, true));
-  infoWin.open({ map, anchor: item.marker });
-  
-  const root = infoWin.getContent();
-  if(root && root.addEventListener){
-    root.addEventListener('mouseenter', ()=>{ cardHovering = true; clearTimeout(cardHideTimer); });
-    root.addEventListener('mouseleave', ()=>{ cardHovering = false; scheduleCardHide(); });
-  }
-}
+/* ---------------- Map Logic ---------------- */
 
-function renderCard(item, isHover = false){
-  const m = item.meta;
-  const c = item.circle;
-  const pos = item.marker.getPosition();
-  const name = m.name || item.defaultName;
-  const radius = c.getRadius();
-  const color = toHex(c.get('fillColor'));
-  const lat = pos.lat().toFixed(6);
-  const lng = pos.lng().toFixed(6);
-  const isNew = !item.fixed;
-  const kind = m.kind || DEFAULT_MARKER_KIND;
-  const scale = m.scale || DEFAULT_MARKER_SCALE;
-  const recipients = m.recipients.join('\n');
+function createCircle(opts){
+  const id = opts.id || Date.now();
+  const pos = opts.position || DEFAULT_CENTER;
+  const isNew = opts.isNew || false;
+  const isFixed = opts.isFixed || false;
+  const name = opts.name || '';
+  const recipients = opts.recipients || [];
   
-  if(isHover && !editMode){
-    return `
-    <div dir="rtl" style="min-width:200px">
-      <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-                  border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:12px 16px; color:#111; box-shadow:0 12px 28px rgba(0,0,0,.15)">
-        <div style="font-weight:800;font-size:16px;margin-bottom:4px;">${escapeHtml(name)}</div>
-        <div style="font-size:12px;color:#555;">النطاق: ${radius.toFixed(0)} متر</div>
-        ${m.recipients.length > 0 ? `
-        <div style="font-size:12px;color:#555;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:4px;">
-          <strong>المستلمون:</strong> ${escapeHtml(m.recipients.join(', '))}
-        </div>` : ''}
-      </div>
-    </div>`;
-  }
+  const circle = new google.maps.Circle({
+    strokeColor: opts.color || DEFAULT_COLOR,
+    strokeOpacity: DEFAULT_STROKE_WEIGHT,
+    strokeWeight: DEFAULT_STROKE_WEIGHT,
+    fillColor: opts.color || DEFAULT_COLOR,
+    fillOpacity: DEFAULT_FILL_OPACITY,
+    map,
+    center: pos,
+    radius: opts.radius || DEFAULT_RADIUS,
+    draggable: !shareMode && editMode && !isFixed,
+    editable: false, // Start with false, overridden by action
+    zIndex: 9998
+  });
   
-  const markerKindOptions = MARKER_KINDS.map(k => `<option value="${k.id}" ${k.id === kind ? 'selected' : ''}>${k.label}</option>`).join('');
+  const marker = new google.maps.Marker({
+    position: pos,
+    map,
+    icon: buildMarkerIcon(opts.markerColor, opts.markerScale, opts.markerKind),
+    draggable: !shareMode && editMode && !isFixed,
+    zIndex: 9999
+  });
   
-  return `
-  <div id="info-card-root" dir="rtl" style="min-width:320px">
-    <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-                border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:14px; color:#111; box-shadow:0 16px 36px rgba(0,0,0,.22)">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-        <img src="img/diriyah-logo.png" alt="Diriyah" style="width:40px;height:40px;object-fit:contain;">
-        <div style="flex:1;font-weight:800;font-size:16px;">${isNew ? 'تعديل النقطة' : 'تعديل النطاق'}</div>
-      </div>
-      
-      <div class="field"><label>الاسم:</label>
-        <input id="card-name" type="text" value="${escapeHtml(name)}" ${isNew ? '' : 'disabled'} style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;width:100%;box-sizing:border-box;"></div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div class="field"><label>اللون:</label>
-          <input id="card-color" type="color" value="${color}" style="width:100%;height:28px;border:none;background:transparent;padding:0"></div>
-        <div class="field"><label>النطاق (متر):</label>
-          <input id="card-radius" type="range" min="5" max="500" step="5" value="${radius}" style="width:100%;">
-          <span id="card-radius-lbl" style="font-size:12px;color:#666">${radius.toFixed(0)}م</span></div>
-        <div class="field"><label>حجم الأيقونة:</label>
-          <input id="card-scale" type="range" min="0.5" max="2.0" step="0.1" value="${scale}" style="width:100%;">
-          <span id="card-scale-lbl" style="font-size:12px;color:#666">${scale.toFixed(1)}x</span></div>
-      </div>
-      
-      ${isNew ? `
-      <div class="field" style="margin-bottom:10px;"><label>نوع الأيقونة:</label>
-        <select id="card-kind" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;box-sizing:border-box;">${markerKindOptions}</select>
-      </div>` : ''}
-      
-      <div class="field" style="margin-bottom:10px;"><label>المستلمون (اكتب كل اسم في سطر):</label>
-        <textarea id="card-recipients" rows="2" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;box-sizing:border-box;font-size:12px;">${escapeHtml(recipients)}</textarea>
-      </div>
-      
-      <div style="display:flex;gap:6px;margin-top:10px;">
-        <button id="card-save"  style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 8px;cursor:pointer;">حفظ</button>
-        ${isNew ? `<button id="card-del" style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 8px;cursor:pointer;color:#c00;">حذف</button>` : ''}
-        <button id="card-close" style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:6px 8px;cursor:pointer;">إغلاق</button>
-      </div>
-      
-      <div style="font-size:10px;color:#999;text-align:center;margin-top:8px;">${lat}, ${lng}</div>
-    </div>
-  </div>`;
-}
-
-function attachCardEvents(item){
-  const nameEl    = document.getElementById('card-name');
-  const colorEl   = document.getElementById('card-color');
-  const radiusEl  = document.getElementById('card-radius');
-  const radiusLbl = document.getElementById('card-radius-lbl');
-  const scaleEl   = document.getElementById('card-scale');
-  const scaleLbl  = document.getElementById('card-scale-lbl');
-  const kindEl    = document.getElementById('card-kind');
-  const recipEl   = document.getElementById('card-recipients');
-  const saveBtn   = document.getElementById('card-save');
-  const delBtn    = document.getElementById('card-del');
-  const closeBtn  = document.getElementById('card-close');
-  
-  function apply(){
-    const r = +radiusEl.value;
-    const c = colorEl.value;
-    const s = +scaleEl.value;
-    const k = kindEl ? kindEl.value : item.meta.kind;
-    
-    item.circle.setOptions({ radius: r, strokeColor: c, fillColor: c, fillOpacity: DEFAULT_FILL_OPACITY });
-    item.marker.setIcon(buildMarkerIcon(c, s, k));
-    
-    if(nameEl && !nameEl.disabled) item.meta.name = nameEl.value.trim();
-    item.meta.kind = k;
-    item.meta.scale = s;
-    item.meta.recipients = parseRecipients(recipEl.value);
-    
-    applyShapeVisibility(item);
-    persist();
-  }
-  
-  if(colorEl) colorEl.addEventListener('input', apply, {passive:true});
-  if(radiusEl) radiusEl.addEventListener('input', apply, {passive:true});
-  if(scaleEl) scaleEl.addEventListener('input', apply, {passive:true});
-  if(kindEl) kindEl.addEventListener('input', apply, {passive:true});
-  if(radiusEl && radiusLbl) radiusEl.addEventListener('input', ()=>{ radiusLbl.textContent = (+radiusEl.value).toFixed(0) + 'م'; });
-  if(scaleEl && scaleLbl) scaleEl.addEventListener('input', ()=>{ scaleLbl.textContent = (+scaleEl.value).toFixed(1) + 'x'; });
-  
-  if(saveBtn) saveBtn.addEventListener('click', ()=>{ 
-    apply(); 
-    showToast('✓ تم حفظ التعديلات'); 
-    if(infoWin){ infoWin.close(); infoWin = null; } 
-    cardPinned = false; 
-    item.circle.setEditable(false); // 🔧 تعديل: إيقاف التحرير
-  }, {passive:true});
-  
-  if(closeBtn) closeBtn.addEventListener('click', ()=>{ 
-    if(infoWin){ infoWin.close(); infoWin = null; } 
-    cardPinned = false; 
-    item.circle.setEditable(false); // 🔧 تعديل: إيقاف التحرير
-  }, {passive:true});
-  
-  if(delBtn) delBtn.addEventListener('click', ()=>{
-    if(confirm(`هل أنت متأكد من حذف "${item.meta.name || item.defaultName}"؟`)){
-      deleteItem(item);
-      if(infoWin){ infoWin.close(); infoWin = null; }
-      cardPinned = false;
-      persist();
+  const item = {
+    id,
+    circle,
+    marker,
+    fixed: isFixed,
+    isNew,
+    visible: true,
+    meta: {
+      name,
+      kind: opts.markerKind || DEFAULT_MARKER_KIND,
+      scale: opts.markerScale || DEFAULT_MARKER_SCALE,
+      color: opts.markerColor || DEFAULT_MARKER_COLOR,
+      recipients
     }
-  }, {passive:true});
-}
-
-function deleteItem(item){
-  if(!item) return;
-  item.marker.setMap(null);
-  item.circle.setMap(null);
-  const idx = circles.findIndex(c => c.id === item.id);
-  if(idx > -1) circles.splice(idx, 1);
+  };
+  circles.push(item);
+  
+  circle.addListener('center_changed', throttle(()=>{
+    marker.setPosition(circle.getCenter());
+    persist();
+  }, 100));
+  
+  circle.addListener('radius_changed', throttle(persist, 100));
+  
+  circle.addListener('click', (e)=>{
+    if(shareMode) return openInfoCard(item, e.latLng, true);
+    openEditCard(item, e.latLng);
+  });
+  
+  marker.addListener('click', (e)=>{
+    if(shareMode) return openInfoCard(item, e.latLng, true);
+    openEditCard(item, e.latLng);
+  });
+  
+  circle.addListener('dragend', persist);
+  marker.addListener('dragend', ()=>{
+    circle.setCenter(marker.getPosition());
+    persist();
+  });
+  
+  // Hover effects for visibility
+  const showHover = () => { if(infoWin) infoWin.close(); circleHovering = true; scheduleCardHide(); };
+  const hideHover = () => { circleHovering = false; scheduleCardHide(); };
+  circle.addListener('mouseover', showHover);
+  marker.addListener('mouseover', showHover);
+  circle.addListener('mouseout', hideHover);
+  marker.addListener('mouseout', hideHover);
+  
+  return item;
 }
 
 function applyShapeVisibility(item){
-  if(!item) return;
-  const r = item.circle.getRadius();
-  const showRadius = r >= 5;
-  item.circle.setVisible(showRadius);
+  if(!item.circle || !item.marker) return;
+  const mapRef = item.visible ? map : null;
+  item.circle.setMap(mapRef);
+  item.marker.setMap(mapRef);
 }
 
-/* ---------------- Object Creation ---------------- */
-function createMarker(item){
-  const pos = { lat:item.lat, lng:item.lng };
-  const m = new google.maps.Marker({
-    position: pos,
-    map: map,
-    icon: buildMarkerIcon(DEFAULT_MARKER_COLOR, DEFAULT_MARKER_SCALE, DEFAULT_MARKER_KIND),
-    draggable: editMode && !item.fixed,
-    title: item.name
-  });
-  return m;
-}
-
-function createCircle(item){
-  const pos = { lat:item.lat, lng:item.lng };
-  const c = new google.maps.Circle({
-    map: map,
-    center: pos,
-    radius: DEFAULT_RADIUS,
-    strokeColor: DEFAULT_COLOR,
-    strokeWeight: DEFAULT_STROKE_WEIGHT,
-    fillColor: DEFAULT_COLOR,
-    fillOpacity: DEFAULT_FILL_OPACITY,
-    draggable: editMode && !item.fixed,
-    editable: false, // 🔧 تعديل: إيقاف التحرير عند الإنشاء
-    clickable: true
-  });
-  return c;
-}
-
-function attachListeners(item){
-  const { marker, circle } = item;
-  
-  // Dragging
-  if(!item.fixed){
-    marker.addListener('drag', throttle(()=>{
-      circle.setCenter(marker.getPosition());
-    }, 50));
-    marker.addListener('dragend', ()=>{
-      circle.setCenter(marker.getPosition());
-      persist();
-    });
-    circle.addListener('drag', throttle(()=>{
-      marker.setPosition(circle.getCenter());
-    }, 50));
-    circle.addListener('dragend', ()=>{
-      marker.setPosition(circle.getCenter());
-      persist();
-    });
-  }
-  
-  // Editing radius
-  circle.addListener('radius_changed', throttle(()=>{
-    applyShapeVisibility(item);
-    persist();
-  }, 250));
-  
-  // Click
-  const clickHandler = ()=>{
-    if(addMode || routeMode) return;
-    if(editMode) openCard(item);
-    else showHoverCard(item);
-  };
-  marker.addListener('click', clickHandler);
-  circle.addListener('click', clickHandler);
-  
-  // Hover
-  const hoverOn = ()=>{
-    if(addMode || routeMode || cardPinned) return;
-    showHoverCard(item);
-  };
-  const hoverOff = ()=>{
-    circleHovering = false;
-    scheduleCardHide();
-  };
-  
-  marker.addListener('mouseover', hoverOn);
-  marker.addListener('mouseout', hoverOff);
-  circle.addListener('mouseover', hoverOn);
-  circle.addListener('mouseout', hoverOff);
-}
-
-function addNewMarker(latLng){
-  if(!editMode) return;
-  const newId = 'n' + Date.now();
-  const newItem = {
-    id: newId,
-    name: "نقطة جديدة",
-    lat: latLng.lat(),
-    lng: latLng.lng(),
-    fixed: false
-  };
-  
-  const marker = createMarker(newItem);
-  const circle = createCircle(newItem);
-  const item = {
-    id: newId,
-    marker,
-    circle,
-    fixed: false,
-    defaultName: "نقطة جديدة",
-    meta: { name: "نقطة جديدة", kind: DEFAULT_MARKER_KIND, scale: DEFAULT_MARKER_SCALE, recipients: [] }
-  };
-  
-  attachListeners(item);
-  circles.push(item);
-  openCard(item); // 🔧 سيقوم هذا بتفعيل التحرير
+function deleteCircle(item){
+  item.circle.setMap(null);
+  item.marker.setMap(null);
+  const index = circles.findIndex(c => c.id === item.id);
+  if(index > -1) circles.splice(index, 1);
+  if(infoWin) infoWin.close();
   persist();
 }
 
-/* ---------------- Toast ---------------- */
-function initToast(){
-  toast = document.createElement('div');
-  toast.id = 'toast-notification';
-  toast.setAttribute('role','status');
-  toast.setAttribute('aria-live','polite');
-  toast.style.cssText = `
-    position: fixed;
-    bottom: -100px;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: rgba(30, 30, 30, 0.9);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    color: white;
-    padding: 12px 24px;
-    border-radius: 25px;
-    font-size: 14px;
-    z-index: 99999;
-    transition: bottom 0.5s ease;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    max-width: 90%;
-    text-align: center;
-  `;
-  document.body.appendChild(toast);
-}
-let toastTimer = null;
-function showToast(message, duration = 3000){
-  if(!toast) initToast();
-  clearTimeout(toastTimer);
-  toast.textContent = message;
-  toast.style.bottom = '20px';
-  toastTimer = setTimeout(() => {
-    toast.style.bottom = '-100px';
-  }, duration);
+let nextCustomId = -1;
+function getNextCustomId(){
+  const ids = circles.filter(c => c.id < 0).map(c => c.id);
+  while(ids.includes(nextCustomId)) {
+    nextCustomId--;
+  }
+  return nextCustomId;
 }
 
-/* ---------------- Boot Function ---------------- */
-function boot(){
-  console.log('Booting Diriyah Map v13.1...');
+function addNewCircle(latLng){
+  const newId = getNextCustomId();
+  const newItem = createCircle({
+    id: newId,
+    position: latLng,
+    isNew: true,
+    name: 'موقع جديد',
+    radius: 50
+  });
+  openEditCard(newItem, latLng);
   
-  const sharedState = readShare();
-  if(sharedState){
-    console.log('🛰️ Share mode detected');
-    shareMode = true;
-    editMode = false;
-  } else {
-    console.log('Standard edit mode');
-    shareMode = false;
-    editMode = true;
+  // Enter edit mode immediately after creation
+  newItem.circle.setEditable(true);
+  newItem.circle.setOptions({ strokeOpacity: 1.0, strokeWeight: 3 });
+  
+  persist();
+}
+
+
+/* ---------------- Card Logic ---------------- */
+
+function openInfoCard(item, position, pinned = false){
+  if(infoWin) infoWin.close();
+  
+  const color = toHex(item.circle.getOptions().strokeColor);
+  const radius = Math.round(item.circle.getRadius());
+  const distanceText = formatDistance(radius);
+  const kind = MARKER_KINDS.find(k=>k.id===item.meta.kind);
+  
+  const content = `
+  <div dir="rtl" style="min-width:260px">
+    <div style="background:rgba(255,255,255,0.95); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+                border:1px solid rgba(0,0,0,0.08); border-radius:16px; padding:16px; color:#111; box-shadow:0 12px 28px rgba(0,0,0,.15)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+        <div style="width:36px;height:36px;background:${color}; border-radius:10px; display:flex;align-items:center;justify-content:center;">
+          ${kind.svg.replace('fill="'+kind.svg.match(/fill="([^"]*)"/)[1]+'"', `fill="#ffffff"`).replace('24','20').replace('24','20')}
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:16px;color:#333;">${escapeHtml(item.meta.name || 'موقع بدون اسم')}</div>
+          <div style="font-size:12px;color:#666;">${kind.label} - قطر ${distanceText}</div>
+        </div>
+      </div>
+      
+      ${item.meta.recipients.length > 0 ? `
+      <div style="border-top:1px solid #f0f0f0; padding-top:12px;">
+        <div style="font-size:11px;color:#666;margin-bottom:6px;">المستهدفون:</div>
+        <div style="font-size:13px;font-weight:600;color:#333;">${escapeHtml(item.meta.recipients.join(', '))}</div>
+      </div>
+      ` : ''}
+    </div>
+  </div>`;
+  
+  infoWin = new google.maps.InfoWindow({
+    content,
+    position,
+    maxWidth: 320,
+    pixelOffset: new google.maps.Size(0, -6)
+  });
+  
+  infoWin.open({ map });
+  cardPinned = pinned;
+  cardHovering = true;
+  
+  infoWin.addListener('domready', () => {
+    const cardRoot = document.querySelector('.gm-style-iw-c');
+    if(cardRoot){
+      cardRoot.addEventListener('mouseover', () => { cardHovering = true; clearTimeout(cardHideTimer); });
+      cardRoot.addEventListener('mouseout', () => { cardHovering = false; scheduleCardHide(); });
+    }
+  });
+  
+  infoWin.addListener('closeclick', ()=>{
+    cardPinned = false;
+  });
+}
+
+function openEditCard(item, position){
+  if(infoWin) infoWin.close();
+  
+  const currentRadius = Math.round(item.circle.getRadius());
+  const currentColor = toHex(item.circle.getOptions().strokeColor);
+  const currentName = escapeHtml(item.meta.name || '');
+  const currentRecipients = escapeHtml(item.meta.recipients.join('\n'));
+  const isNew = item.isNew || !item.fixed;
+  
+  // Ensure only this item is editable
+  circles.forEach(c => c.circle.setEditable(c.id === item.id));
+  item.circle.setOptions({ strokeOpacity: 1.0, strokeWeight: 3 });
+  
+  const kindOptions = MARKER_KINDS.map(k =>
+    `<option value="${k.id}" ${k.id === item.meta.kind ? 'selected' : ''}>${k.label}</option>`
+  ).join('');
+  
+  const content = `
+  <div id="edit-card-root" dir="rtl" style="min-width:320px">
+    <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+                border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:14px; color:#111; box-shadow:0 16px 36px rgba(0,0,0,.22)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+        <div style="width:40px;height:40px;background:${currentColor}; border-radius:10px; display:flex;align-items:center;justify-content:center;">
+          ${MARKER_KINDS.find(k=>k.id===item.meta.kind).svg.replace(/fill="([^"]*)"/g, `fill="#ffffff"`).replace('24','20').replace('24','20')}
+        </div>
+        <div style="flex:1;font-weight:800;font-size:16px;">تحرير الموقع ${isNew ? 'الجديد' : ''}</div>
+      </div>
+      
+      <div class="field"><label style="font-size:12px;color:#333;">الاسم:</label>
+        <input id="circle-name" type="text" value="${currentName}" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;margin-bottom:10px;">
+        <div class="field"><label style="font-size:12px;color:#333;">نوع الأيقونة:</label>
+          <select id="marker-kind" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:6px;">${kindOptions}</select></div>
+        <div class="field"><label style="font-size:12px;color:#333;">اللون:</label>
+          <input id="circle-color" type="color" value="${currentColor}" style="width:100%;height:28px;border:none;background:transparent;padding:0"></div>
+      </div>
+      
+      <div class="field"><label style="font-size:12px;color:#333;">نصف القطر (متر):</label>
+        <input id="circle-radius" type="range" min="10" max="500" step="5" value="${currentRadius}" style="width:100%;">
+        <span id="radius-label" style="font-size:12px;color:#666">${currentRadius} متر</span></div>
+      
+      <div class="field"><label style="font-size:12px;color:#333;">المستهدفون (كل سطر اسم):</label>
+        <textarea id="circle-recipients" rows="2" style="width:100%; padding:6px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;">${currentRecipients}</textarea></div>
+      
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button id="save-btn" style="flex:1;background:#4285f4;color:white;border:none;border-radius:10px;padding:8px 12px;cursor:pointer;">حفظ</button>
+        <button id="cancel-btn" style="flex:1;border:1px solid #ddd;background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;">إلغاء</button>
+        ${isNew ? `<button id="delete-btn" style="flex:1;border:1px solid #f44336;background:#fefefe;color:#f44336;border-radius:10px;padding:8px 12px;cursor:pointer;">حذف</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+  
+  infoWin = new google.maps.InfoWindow({
+    content,
+    position,
+    maxWidth: 380,
+    pixelOffset: new google.maps.Size(0, -6)
+  });
+  
+  infoWin.open({ map });
+  cardPinned = true;
+  cardHovering = true;
+  
+  infoWin.addListener('domready', () => {
+    attachEditCardEvents(item);
+    const cardRoot = document.querySelector('.gm-style-iw-c');
+    if(cardRoot){
+      cardRoot.addEventListener('mouseover', () => { cardHovering = true; clearTimeout(cardHideTimer); });
+      cardRoot.addEventListener('mouseout', () => { cardHovering = false; scheduleCardHide(); });
+    }
+  });
+  
+  infoWin.addListener('closeclick', ()=>{
+    item.circle.setEditable(false);
+    item.circle.setOptions({ strokeOpacity: DEFAULT_STROKE_WEIGHT, strokeWeight: DEFAULT_STROKE_WEIGHT });
+    cardPinned = false;
+    // If it's a new unsaved circle, delete it
+    if(item.isNew) deleteCircle(item);
+  });
+}
+
+function attachEditCardEvents(item){
+  const nameInput = document.getElementById('circle-name');
+  const radiusInput = document.getElementById('circle-radius');
+  const radiusLabel = document.getElementById('radius-label');
+  const colorInput = document.getElementById('circle-color');
+  const recipientsInput = document.getElementById('circle-recipients');
+  const kindSelect = document.getElementById('marker-kind');
+  const saveBtn = document.getElementById('save-btn');
+  const cancelBtn = document.getElementById('cancel-btn');
+  const deleteBtn = document.getElementById('delete-btn');
+  
+  if(radiusInput){
+    radiusInput.addEventListener('input', ()=>{
+      const radius = +radiusInput.value;
+      item.circle.setRadius(radius);
+      radiusLabel.textContent = `${radius} متر`;
+      // Note: no persist here, saved on click
+    });
   }
+  
+  if(colorInput){
+    colorInput.addEventListener('input', ()=>{
+      const color = colorInput.value;
+      item.circle.setOptions({ strokeColor: color, fillColor: color });
+      item.marker.setIcon(buildMarkerIcon(color, item.meta.scale, item.meta.kind));
+      // Note: no persist here, saved on click
+    });
+  }
+  
+  if(kindSelect){
+    kindSelect.addEventListener('change', ()=>{
+      item.meta.kind = kindSelect.value;
+      item.marker.setIcon(buildMarkerIcon(item.circle.getOptions().strokeColor, item.meta.scale, item.meta.kind));
+    });
+  }
+  
+  function saveChanges(){
+    if(nameInput) item.meta.name = nameInput.value.trim();
+    if(recipientsInput) item.meta.recipients = parseRecipients(recipientsInput.value);
+    item.isNew = false;
+    item.circle.setEditable(false);
+    item.circle.setOptions({ strokeOpacity: DEFAULT_STROKE_WEIGHT, strokeWeight: DEFAULT_STROKE_WEIGHT });
+    
+    // Update marker color meta for state saving consistency
+    item.meta.color = toHex(item.circle.getOptions().strokeColor);
+    item.meta.kind = kindSelect.value;
+    
+    flushPersist();
+    showToast('✓ تم حفظ التغييرات');
+    if(infoWin) infoWin.close();
+    cardPinned = false;
+  }
+  
+  if(saveBtn) saveBtn.addEventListener('click', saveChanges, {passive:true});
+  
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+    // Restore original state (or just close for now)
+    item.circle.setEditable(false);
+    item.circle.setOptions({ strokeOpacity: DEFAULT_STROKE_WEIGHT, strokeWeight: DEFAULT_STROKE_WEIGHT });
+    if(item.isNew) deleteCircle(item);
+    else { applyState(readShare()); } // Simple reload for cancelled changes
+    if(infoWin) infoWin.close();
+    cardPinned = false;
+  }, {passive:true});
+  
+  if(deleteBtn) deleteBtn.addEventListener('click', ()=>{
+    deleteCircle(item);
+    showToast('✓ تم حذف الموقع');
+    if(infoWin) infoWin.close();
+    cardPinned = false;
+  }, {passive:true});
+}
+
+/* ---------------- UI State Toggles ---------------- */
+
+function toggleTraffic(){
+  if(shareMode) return;
+  const isChecked = btnTraffic.getAttribute('aria-pressed') === 'true';
+  if(isChecked){
+    trafficLayer.setMap(null);
+    btnTraffic.setAttribute('aria-pressed', 'false');
+  } else {
+    trafficLayer.setMap(map);
+    btnTraffic.setAttribute('aria-pressed', 'true');
+  }
+  persist();
+}
+
+function toggleAddMode(){
+  if(shareMode) return;
+  if(routeMode) toggleRouteMode(); // Turn off route mode
+  
+  addMode = !addMode;
+  btnAdd.setAttribute('aria-pressed', String(addMode));
+  
+  // Update map cursor and message
+  if(addMode){
+    map.setOptions({ draggableCursor: 'crosshair' });
+    showToast('💡 انقر على الخريطة لإضافة موقع جديد', 4000);
+  } else {
+    map.setOptions({ draggableCursor: '' });
+    hideToast();
+  }
+}
+
+function toggleRouteMode(){
+  if(shareMode) return;
+  if(addMode) toggleAddMode(); // Turn off add mode
+  
+  routeMode = !routeMode;
+  btnRoute.setAttribute('aria-pressed', String(routeMode));
+  
+  // Update map cursor and message
+  if(routeMode){
+    map.setOptions({ draggableCursor: 'crosshair' });
+    showToast('💡 انقر على الخريطة لإضافة نقطة مسار', 4000);
+    if(routePoints.length > 0 && btnRouteClear) btnRouteClear.style.display = 'block';
+  } else {
+    map.setOptions({ draggableCursor: '' });
+    hideToast();
+  }
+}
+
+function handleMapClick(e){
+  if(addMode){
+    toggleAddMode();
+    addNewCircle(e.latLng);
+  } else if (routeMode) {
+    addRoutePoint(e.latLng);
+    if(routePoints.length === 1) showToast('✓ تم إضافة نقطة البداية. أضف نقطة ثانية لحساب المسار.', 3000);
+    else showToast('✓ تم إضافة نقطة مسار جديدة.', 3000);
+  }
+}
+
+function showToast(message, duration = 3000){
+  if(!toast) return;
+  toast.textContent = message;
+  toast.style.opacity = '1';
+  toast.style.pointerEvents = 'auto';
+  
+  clearTimeout(toast.timer);
+  if(duration > 0){
+    toast.timer = setTimeout(hideToast, duration);
+  }
+}
+
+function hideToast(){
+  if(toast){
+    toast.style.opacity = '0';
+    toast.style.pointerEvents = 'none';
+    clearTimeout(toast.timer);
+  }
+}
+
+/* ---------------- Share function fix ---------------- */
+// 🔧 إصلاح: تحسين دالة زر المشاركة لضمان عملها وتقديم رد فعل
+function handleShareClick(){
+  const shareUrl = flushPersist();
+  
+  if(navigator.share){
+    navigator.share({
+      title: 'مشاركة خريطة أمن الدرعية',
+      text: 'خريطة أمن الدرعية مع الإحداثيات المحددة',
+      url: shareUrl
+    }).then(() => {
+      console.log('✅ Successful share');
+    }).catch((error) => {
+      console.error('❌ Error sharing:', error);
+      fallbackCopy(shareUrl);
+    });
+  } else {
+    fallbackCopy(shareUrl);
+  }
+}
+
+function fallbackCopy(url){
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('✓ تم نسخ رابط المشاركة إلى الحافظة.');
+      console.log('✅ Copied to clipboard:', url);
+    }).catch(err => {
+      console.error('❌ Failed to copy URL:', err);
+      showToast('❌ تعذر النسخ. الرابط هو: ' + url, 5000);
+    });
+  } else {
+    // Very old fallback (may cause popups)
+    const el = document.createElement('textarea');
+    el.value = url;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    showToast('✓ تم نسخ رابط المشاركة إلى الحافظة (طريقة قديمة).');
+  }
+}
+
+/* ---------------- Main Boot ---------------- */
+
+function boot(){
+  console.log('Booting map application...');
+  
+  trafficLayer = new google.maps.TrafficLayer();
+  
+  btnTraffic = document.getElementById('btn-traffic');
+  btnShare   = document.getElementById('btn-share');
+  btnAdd     = document.getElementById('btn-add');
+  btnRoute   = document.getElementById('btn-route');
+  btnRouteClear = document.getElementById('btn-route-clear');
+  modeBadge  = document.getElementById('mode-badge');
+  toast      = document.getElementById('toast');
+  mapTypeSelector = document.getElementById('map-type');
+  
+  if(!btnTraffic || !btnShare || !btnAdd || !btnRoute || !mapTypeSelector){
+    console.error('❌ Required UI elements not found.');
+    // Continue with map but warn user
+  }
+  
+  const urlParams = new URLSearchParams(location.search);
+  shareMode = urlParams.has('x');
   
   map = new google.maps.Map(document.getElementById('map'), {
     center: DEFAULT_CENTER,
     zoom: BASE_ZOOM,
     mapTypeId: 'roadmap',
-    mapId: 'YOUR_MAP_ID_HERE', // 💡 استبدل هذا بمعرف الخريطة الخاص بك
     streetViewControl: false,
-    fullscreenControl: false,
     mapTypeControl: false,
-    zoomControl: true,
-    zoomControlOptions: { position: google.maps.ControlPosition.LEFT_BOTTOM },
-    styles: [
-      { featureType: "poi", stylers: [{ visibility: "off" }] },
-      { featureType: "transit", stylers: [{ visibility: "off" }] }
-    ]
+    fullscreenControl: false,
+    clickableIcons: false,
+    rotateControl: false,
+    scaleControl: false,
+    zoomControl: !shareMode
   });
   
-  trafficLayer = new google.maps.TrafficLayer();
-  
+  // 1. Create fixed circles
   LOCATIONS.forEach(loc => {
-    const marker = createMarker(loc);
-    const circle = createCircle(loc);
-    const item = {
+    createCircle({
       id: loc.id,
-      marker,
-      circle,
-      fixed: true,
-      defaultName: loc.name,
-      meta: { name: loc.name, kind: DEFAULT_MARKER_KIND, scale: DEFAULT_MARKER_SCALE, recipients: [] }
-    };
-    attachListeners(item);
-    circles.push(item);
+      position: new google.maps.LatLng(loc.lat, loc.lng),
+      isFixed: true,
+      name: loc.name,
+      radius: DEFAULT_RADIUS,
+      color: DEFAULT_COLOR,
+      markerKind: 'pin',
+      markerColor: DEFAULT_MARKER_COLOR,
+      markerScale: DEFAULT_MARKER_SCALE
+    });
   });
   
-  if(sharedState){
-    applyState(sharedState);
-  } 
+  // 2. Apply saved/shared state
+  const sharedState = readShare();
+  applyState(sharedState);
   
-  map.addListener('zoom_changed', throttle(()=>{
-    circles.forEach(it => {
-      const m = it.meta;
-      const c = it.circle;
-      const clr = toHex(c.get('fillColor'));
-      it.marker.setIcon(buildMarkerIcon(clr, m.scale, m.kind));
-    });
-    persist();
-  }, 200));
-  
-  map.addListener('center_changed', throttle(persist, 1000));
+  // 3. Attach event listeners
+  map.addListener('click', handleMapClick);
+  map.addListener('zoom_changed', throttle(persist, 200));
+  map.addListener('center_changed', throttle(persist, 200));
   map.addListener('maptypeid_changed', persist);
   
-  map.addListener('click', (e)=>{
-    if(shareMode) return;
-    
-    if(addMode){
-      addNewMarker(e.latLng);
-      setMode('edit');
-    } else if(routeMode){
-      addRoutePoint(e.latLng);
-    } else {
-      if(!editMode && activeRoutePoly && google.maps.geometry.poly.isLocationOnEdge(e.latLng, activeRoutePoly, 1e-3)) {
-        openRouteInfoCard(e.latLng, true);
-      }
+  if(!shareMode){
+    // 🔧 إصلاح نهائي: ربط جميع الأزرار هنا لضمان عملها
+    btnShare.addEventListener('click', handleShareClick); 
+    btnTraffic.addEventListener('click', toggleTraffic);
+    btnAdd.addEventListener('click', toggleAddMode);
+    btnRoute.addEventListener('click', toggleRouteMode);
+    btnRouteClear.addEventListener('click', clearRouteVisuals);
+  
+    if(mapTypeSelector){
+      mapTypeSelector.addEventListener('change', (e)=>{
+        map.setMapTypeId(e.target.value);
+      }, {passive:true});
     }
-  });
   
-  map.addListener('mousemove', throttle((e)=>{
-    if(shareMode || editMode) {
-      if(activeRoutePoly && google.maps.geometry.poly.isLocationOnEdge(e.latLng, activeRoutePoly, 1e-3)) {
-        if(!routeCardPinned) openRouteInfoCard(e.latLng, false);
-      } else {
-        if(routeInfoWin && !routeCardPinned) routeInfoWin.close();
-      }
+    // Initial display for clear button
+    if(btnRouteClear) {
+      btnRouteClear.style.display = (routePoints.length > 0) ? 'block' : 'none';
     }
-  }, 100));
   
-  /* Controls */
-  btnTraffic = document.getElementById('btn-traffic');
-  btnShare = document.getElementById('btn-share');
-  btnAdd = document.getElementById('btn-add-marker');
-  btnRoute = document.getElementById('btn-route');
-  btnRouteClear = document.getElementById('btn-route-clear');
-  modeBadge = document.getElementById('mode-badge');
-  mapTypeSelector = document.getElementById('map-type-selector');
-  
-  if(btnTraffic) btnTraffic.addEventListener('click', ()=>{
-    const pressed = btnTraffic.getAttribute('aria-pressed') === 'true';
-    if(pressed){
-      trafficLayer.setMap(null);
-      btnTraffic.setAttribute('aria-pressed', 'false');
-    } else {
-      trafficLayer.setMap(map);
-      btnTraffic.setAttribute('aria-pressed', 'true');
-    }
-    persist();
-  });
-  
-  // 🔧 تعديل: زر المشاركة يستخدم الآن الرابط المُرجع من flushPersist
-  if(btnShare) btnShare.addEventListener('click', ()=>{
-    const url = flushPersist(); // الحصول على الرابط المحدث مباشرة
-    const recipients = circles.flatMap(c => c.meta.recipients).filter((v,i,a) => a.indexOf(v) === i);
-    const shareTitle = 'خريطة الدرعية الأمنية';
-    const shareText = `خريطة محدثة. المستلمون: ${recipients.join(', ')}\n${url}`;
-    
-    if(navigator.share){
-      navigator.share({ title: shareTitle, text: shareText, url: url })
-        .then(()=> showToast('✓ تمت مشاركة الرابط'))
-        .catch((e)=> showToast('لم تتم المشاركة: ' + e.message));
-    } else if(navigator.clipboard){
-      navigator.clipboard.writeText(url)
-        .then(()=> showToast('✓ تم نسخ الرابط إلى الحافظة'))
-        .catch((e)=> showToast('فشل النسخ: ' + e.message));
-    } else {
-      showToast('المشاركة غير مدعومة على هذا المتصفح');
-    }
-  });
-  
-  if(btnAdd) btnAdd.addEventListener('click', ()=> setMode('add'));
-  if(btnRoute) btnRoute.addEventListener('click', ()=> setMode('route'));
-  if(btnRouteClear) btnRouteClear.addEventListener('click', ()=>{
-    if(confirm('هل أنت متأكد من حذف المسار الحالي؟')){
-      clearRouteVisuals();
-      setMode('edit');
-      showToast('تم حذف المسار');
-    }
-  });
-  
-  if(mapTypeSelector) mapTypeSelector.addEventListener('change', (e)=>{
-    const mapTypeId = e.target.value;
-    if(['roadmap','satellite','hybrid','terrain'].includes(mapTypeId)){
-      map.setMapTypeId(mapTypeId);
-      persist();
-    }
-  });
-  
-  if(shareMode){
-    document.body.classList.add('share-mode');
-    if(modeBadge) modeBadge.style.display = 'none';
-    if(btnShare) btnShare.style.display = 'none';
-    if(btnAdd) btnAdd.style.display = 'none';
-    if(btnRoute) btnRoute.style.display = 'none';
-    if(btnRouteClear) btnRouteClear.style.display = 'none';
-    if(mapTypeSelector) mapTypeSelector.style.display = 'none';
   } else {
-    document.body.classList.remove('share-mode');
-    setMode('edit'); // Set default mode
+    console.log('Map loaded in share mode.');
   }
   
-  console.log('✅ Map boot complete.');
-}
-
-function setMode(mode){
-  if(shareMode) mode = 'view';
-  
-  addMode = (mode === 'add');
-  routeMode = (mode === 'route');
-  
-  map.setOptions({ draggableCursor: addMode ? 'crosshair' : (routeMode ? 'copy' : null) });
-  if(modeBadge) modeBadge.textContent = addMode ? 'إضافة نقطة' : (routeMode ? 'رسم مسار' : 'وضع التحرير');
-  if(modeBadge) modeBadge.style.display = (addMode || routeMode) ? 'inline-block' : 'none';
-  
-  // Toggle route clear button visibility
-  if(btnRouteClear) btnRouteClear.style.display = routeMode ? 'flex' : 'none';
-  
-  // Reset other buttons
-  if(btnAdd) btnAdd.setAttribute('aria-pressed', addMode ? 'true' : 'false');
-  if(btnRoute) btnRoute.setAttribute('aria-pressed', routeMode ? 'true' : 'false');
-  
-  // Close any open windows
-  if(infoWin) infoWin.close();
-  cardPinned = false;
+  // Log for debugging
+  console.log('Map booted successfully. Share mode:', shareMode);
 }
