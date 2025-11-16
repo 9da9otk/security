@@ -4,32 +4,36 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
+const publicDir = path.join(__dirname, 'public');
 
-console.log('Booting Diriyah Security Map server... __dirname =', __dirname);
+console.log('Booting Diriyah Security Map server...');
+console.log('__dirname =', __dirname);
 
-// 1) تقديم الملفات الثابتة assets فقط
-app.use('/js',  express.static(path.join(__dirname, 'public', 'js')));
-app.use('/css', express.static(path.join(__dirname, 'public', 'css')));
-app.use('/img', express.static(path.join(__dirname, 'public', 'img')));
+// 1) ملفات ثابتة
+app.use('/js',  express.static(path.join(publicDir, 'js')));
+app.use('/css', express.static(path.join(publicDir, 'css')));
+app.use('/img', express.static(path.join(publicDir, 'img')));
 
-// 2) الصفحة الرئيسية – هنا نستبدل %GOOGLE_MAP_KEY%
+// 2) الصفحة الرئيسية مع استبدال مفتاح قوقل
+function renderIndex(res) {
+  const indexPath = path.join(publicDir, 'index.html');
+  let html = fs.readFileSync(indexPath, 'utf8');
+  const key = process.env.GOOGLE_MAP_KEY || '';
+  html = html.replace('%GOOGLE_MAP_KEY%', key);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(html);
+}
+
 app.get('/', (req, res) => {
   try {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    let html = fs.readFileSync(indexPath, 'utf8');
-
-    const key = process.env.GOOGLE_MAP_KEY || '';
-    html = html.replace('%GOOGLE_MAP_KEY%', key);
-
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    renderIndex(res);
   } catch (err) {
-    console.error('Error serving / :', err);
+    console.error('Error serving /:', err);
     res.status(500).send('Internal Server Error');
   }
 });
 
-// 3) API لاختصار الروابط
+// 3) API اختصار الرابط
 app.get('/api/short', async (req, res) => {
   try {
     const longUrl = req.query.url;
@@ -47,22 +51,15 @@ app.get('/api/short', async (req, res) => {
   }
 });
 
-// 4) health check بسيط
+// 4) health check
 app.get('/health', (req, res) => {
   res.send('OK');
 });
 
-// 5) fallback لباقي المسارات (لروابط المشاركة مثلاً)
+// 5) fallback لباقي المسارات (روابط المشاركة)
 app.get('*', (req, res) => {
   try {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    let html = fs.readFileSync(indexPath, 'utf8');
-
-    const key = process.env.GOOGLE_MAP_KEY || '';
-    html = html.replace('%GOOGLE_MAP_KEY%', key);
-
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    renderIndex(res);
   } catch (err) {
     console.error('Error in fallback *:', err);
     res.status(500).send('Internal Server Error');
