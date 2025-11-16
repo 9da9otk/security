@@ -9,12 +9,16 @@ const publicDir = path.join(__dirname, 'public');
 console.log('Booting Diriyah Security Map server...');
 console.log('__dirname =', __dirname);
 
-// 1) Static files (المسار الصحيح والمطلق)
+// ---------------- Static Files ----------------
+// أفضل ترتيب للملفات الثابتة (لتفادي مشاكل MIME type)
+app.use('/js', express.static(path.join(publicDir, 'js')));
+app.use('/css', express.static(path.join(publicDir, 'css')));
+app.use('/img', express.static(path.join(publicDir, 'img')));
 app.use(express.static(publicDir, {
   extensions: ['html'],
 }));
 
-// 2) render index with Google key
+// ---------------- render index.html ----------------
 function renderIndex(req, res) {
   try {
     const indexPath = path.join(publicDir, 'index.html');
@@ -29,12 +33,11 @@ function renderIndex(req, res) {
   }
 }
 
-// 3) Root route
+// ---------------- Routes ----------------
 app.get('/', (req, res) => {
   renderIndex(req, res);
 });
 
-// 4) Short URL API
 app.get('/api/short', async (req, res) => {
   try {
     const longUrl = req.query.url;
@@ -51,23 +54,21 @@ app.get('/api/short', async (req, res) => {
   }
 });
 
-// 5) Health check
 app.get('/health', (req, res) => {
   res.send('OK');
 });
 
-// 6) Fallback — لكن فقط للمسارات التي ليست ملفات
+// ---------------- Fallback (for shared links etc.) ----------------
 app.get('*', (req, res, next) => {
-  // إذا المسار يحتوي نقطة، معناها ملف → لا نرجّع index
-  if (req.path.includes('.')) {
+  // لا تعالج الملفات أو API عبر fallback
+  if (req.path.includes('.') || req.path.startsWith('/api')) {
     return next();
   }
 
-  // وإلا نرجع index.html (لروابط المشاركة)
   renderIndex(req, res);
 });
 
-// 7) Start server
+// ---------------- Start ----------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('Server is running on port', PORT);
