@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v14.1 (toolbar fixed + circle size only via card + shorter share) */
+/* Diriyah Security Map – v15.0 (Express backend + is.gd + interactive share + clean) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -86,6 +86,7 @@ function scheduleCardHide() {
   }, 120);
 }
 
+/* Defaults */
 const DEFAULT_CENTER = { lat: 24.7399, lng: 46.5731 };
 const DEFAULT_RADIUS = 20;
 const DEFAULT_COLOR = '#ff0000';
@@ -162,7 +163,11 @@ function meetSvg(fill) {
 
 /* utilities */
 const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
-const escapeHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '<').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const escapeHtml = s => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
 
 /* convert rgba → hex */
 const toHex = (c) => {
@@ -175,9 +180,15 @@ const toHex = (c) => {
 };
 
 /* parse recipients */
-const parseRecipients = t => String(t).split(/\r?\n/).map(s => s.replace(/[،;،,]+/g, ' ').trim()).filter(Boolean);
+const parseRecipients = t => String(t)
+  .split(/\r?\n/)
+  .map(s => s.replace(/[،;،,]+/g, ' ').trim())
+  .filter(Boolean);
+
+/* ---------------- Share state (short) ---------------- */
 
 let persistTimer = null;
+
 const persist = () => {
   if (shareMode) return;
   clearTimeout(persistTimer);
@@ -191,8 +202,6 @@ function flushPersist() {
   clearTimeout(persistTimer);
   writeShare(buildState());
 }
-
-/* ---------------- Share state (short) ---------------- */
 
 /* Base64URL — encode */
 function b64uEncode(s) {
@@ -240,6 +249,8 @@ function readShare() {
 }
 
 /* build compact state to minimize length */
+const circles = [];
+
 function buildState() {
   if (!map) return null;
 
@@ -433,8 +444,6 @@ function buildMarkerIcon(color, userScale, kindId) {
   };
 }
 
-const circles = [];
-
 /* ---------------- Route helpers ---------------- */
 function ensureDirections() {
   if (!directionsService)
@@ -464,7 +473,7 @@ function createStopMarker(position, index) {
     },
     label: { text: String(index + 1), color: routeStyle.color, fontSize: '11px', fontWeight: '700' },
     clickable: true,
-    draggable: true
+    draggable: !shareMode
   });
 
   m.addListener('dragend', () => {
@@ -474,6 +483,7 @@ function createStopMarker(position, index) {
   });
 
   m.addListener('rightclick', () => {
+    if (shareMode) return;
     removeRoutePoint(index);
   });
 
@@ -729,6 +739,7 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
       });
 
       m.addListener('rightclick', () => {
+        if (shareMode) return;
         removeRoutePoint(i);
       });
 
@@ -1194,6 +1205,8 @@ function attachCardEvents(item) {
 
     item.meta.recipients = parseRecipients(recipEl.value);
 
+    applyShapeVisibility(item);
+
     persist();
   }
 
@@ -1297,7 +1310,7 @@ function attachListeners(item) {
     });
   }
 
-  // سيعمل عند التغيير من الكرت فقط (ما فيه handles على الخريطة)
+  // سيعمل عند التغيير من الكرت فقط (لا يوجد handles على الخريطة)
   circle.addListener('radius_changed', throttle(() => {
     applyShapeVisibility(item);
     persist();
@@ -1330,7 +1343,7 @@ function attachListeners(item) {
 
 /* ---------------- Add new marker ---------------- */
 function addNewMarker(latLng) {
-  if (!editMode) return;
+  if (!editMode || shareMode) return;
 
   const newId = 'n' + Date.now();
 
@@ -1402,7 +1415,7 @@ function showToast(msg, duration = 3000) {
 
 function updateEditability() {
   circles.forEach(it => {
-    const canEdit = editMode && !it.fixed;
+    const canEdit = editMode && !it.fixed && !shareMode;
     if (it.marker.setDraggable) it.marker.setDraggable(canEdit);
     if (it.circle.setDraggable) it.circle.setDraggable(canEdit);
     if (it.circle.setEditable) it.circle.setEditable(false); // دائماً بدون handles
@@ -1427,8 +1440,9 @@ function setMode(mode) {
   });
 
   if (modeBadge) {
-    if (!editMode) {
-      modeBadge.style.display = 'none';
+    if (shareMode || !editMode) {
+      modeBadge.style.display = shareMode ? 'none' : 'inline-block';
+      if (!shareMode) modeBadge.textContent = 'وضع العرض';
     } else if (addMode) {
       modeBadge.textContent = 'إضافة نقطة';
       modeBadge.style.display = 'inline-block';
@@ -1450,7 +1464,7 @@ function setMode(mode) {
   if (btnRoute)
     btnRoute.setAttribute('aria-pressed', routeMode ? 'true' : 'false');
 
-  if (btnEdit) {
+  if (btnEdit && !shareMode) {
     btnEdit.textContent = editMode ? 'وضع العرض' : 'تحرير';
   }
 
@@ -1463,12 +1477,13 @@ function setMode(mode) {
 /* ---------------- Boot ---------------- */
 
 function boot() {
-  console.log("Booting Diriyah Map v14.1...");
+  console.log("Booting Diriyah Map v15.0...");
 
   const sharedState = readShare();
   if (sharedState) {
     shareMode = true;
     editMode = false;
+    document.body.classList.add('share-mode'); // وضع المشاركة دائماً عرض فقط
   }
 
   map = new google.maps.Map(document.getElementById('map'), {
@@ -1508,6 +1523,7 @@ function boot() {
     };
 
     attachListeners(item);
+    applyShapeVisibility(item);
     circles.push(item);
   });
 
@@ -1569,6 +1585,7 @@ function boot() {
 
   if (btnTraffic)
     btnTraffic.addEventListener('click', () => {
+      if (shareMode) return;
       const enabled = btnTraffic.getAttribute('aria-pressed') === 'true';
       if (enabled) {
         trafficLayer.setMap(null);
@@ -1581,17 +1598,31 @@ function boot() {
     });
 
   if (btnShare)
-    btnShare.addEventListener('click', () => {
+    btnShare.addEventListener('click', async () => {
+      if (shareMode) return;
       flushPersist();
-      const url = location.href;
+      const longUrl = location.href;
 
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url)
-          .then(() => showToast('✓ تم نسخ الرابط'))
-          .catch(() => showToast('لم يتم النسخ'));
-      } else {
-        // fallback
-        showToast('انسخ الرابط من شريط العنوان');
+      try {
+        const resp = await fetch('/api/shorten?url=' + encodeURIComponent(longUrl));
+        if (!resp.ok) throw new Error('shorten failed');
+        const data = await resp.json();
+        const shortUrl = (data && data.shortUrl) || longUrl;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shortUrl);
+          showToast('✓ تم نسخ الرابط المختصر');
+        } else {
+          showToast('الرابط المختصر: ' + shortUrl);
+        }
+      } catch (err) {
+        console.error(err);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(longUrl);
+          showToast('✓ تم نسخ الرابط (بدون اختصار)');
+        } else {
+          showToast('تعذر إنشاء رابط مختصر');
+        }
       }
     });
 
@@ -1612,6 +1643,7 @@ function boot() {
 
   if (btnRouteClear)
     btnRouteClear.addEventListener('click', () => {
+      if (shareMode) return;
       if (confirm("حذف المسار؟")) {
         clearRouteVisuals();
         setMode('edit');
@@ -1621,6 +1653,7 @@ function boot() {
 
   if (btnRoadmap && btnSatellite) {
     btnRoadmap.addEventListener('click', () => {
+      if (shareMode) return;
       map.setMapTypeId('roadmap');
       btnRoadmap.setAttribute('aria-pressed', 'true');
       btnSatellite.setAttribute('aria-pressed', 'false');
@@ -1628,6 +1661,7 @@ function boot() {
     });
 
     btnSatellite.addEventListener('click', () => {
+      if (shareMode) return;
       map.setMapTypeId('hybrid');
       btnSatellite.setAttribute('aria-pressed', 'true');
       btnRoadmap.setAttribute('aria-pressed', 'false');
@@ -1644,13 +1678,11 @@ function boot() {
   }
 
   if (shareMode) {
-    document.body.classList.add('share-mode');
+    // في وضع المشاركة: عرض فقط لكن تفاعلي (Hover + Route Info)
+    editMode = false;
+    addMode = false;
+    routeMode = false;
     if (modeBadge) modeBadge.style.display = 'none';
-    if (btnShare) btnShare.style.display = 'none';
-    if (btnAdd) btnAdd.style.display = 'none';
-    if (btnRoute) btnRoute.style.display = 'none';
-    if (btnRouteClear) btnRouteClear.style.display = 'none';
-    if (btnEdit) btnEdit.style.display = 'none';
   } else {
     setMode('edit');
   }
