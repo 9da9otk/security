@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Diriyah Security Map</title>
 
-  <!-- Tajawal font -->
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 
   <style>
@@ -86,6 +85,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
 
@@ -98,18 +98,20 @@
 
     <button id="btnShare"     class="btn">مشاركة</button>
     <button id="btnEdit"      class="btn">وضع العرض</button>
-    <button id="btnAdd"       class="btn" aria-pressed="false" title="إضافة موقع جديد">إضافة موقع</button>
+    <button id="btnAdd"       class="btn" aria-pressed="false">إضافة موقع</button>
 
-    <button id="btnRoute"      class="btn" aria-pressed="false" title="وضع إنشاء مسار">مسار</button>
-    <button id="btnRouteClear" class="btn" title="مسح المسار" style="display:none;">مسح المسار</button>
+    <button id="btnRoute"      class="btn" aria-pressed="false">مسار</button>
+    <button id="btnRouteClear" class="btn" style="display:none;">مسح المسار</button>
   </div>
 
-  <!-- ملف الجافاسكربت الرئيسي -->
-  <script src="/js/main.js" defer></script>
+  <!-- Main JS -->
+  <script src="/js/main.js"></script>
 
-  <!-- خريطة قوقل: المفتاح يستبدل من السيرفر -->
-  <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=%GOOGLE_MAP_KEY%&v=weekly&libraries=geometry&callback=initMap">
+  <!-- Google Maps Loader (المفتاح يستبدل من السيرفر تلقائياً) -->
+  <script
+      src="https://maps.googleapis.com/maps/api/js?key=%GOOGLE_MAP_KEY%&v=weekly&libraries=geometry&callback=initMap"
+      async>
   </script>
+
 </body>
 </html>
