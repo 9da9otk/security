@@ -10,21 +10,28 @@ console.log('Booting Diriyah Security Map server...');
 console.log('__dirname =', __dirname);
 
 // ---------------- Static Files ----------------
-// أفضل ترتيب للملفات الثابتة (لتفادي مشاكل MIME type)
+// تقديم الملفات الثابتة بشكل صحيح
 app.use('/js', express.static(path.join(publicDir, 'js')));
 app.use('/css', express.static(path.join(publicDir, 'css')));
 app.use('/img', express.static(path.join(publicDir, 'img')));
-app.use(express.static(publicDir, {
-  extensions: ['html'],
-}));
+
+// مهم جداً: لا نقدم index.html كملف ثابت
+// لأننا نحتاج حقن GOOGLE_MAP_KEY داخل المحتوى
+// لذلك أزلنا:
+// app.use(express.static(publicDir, { extensions: ['html'] }));
 
 // ---------------- render index.html ----------------
 function renderIndex(req, res) {
   try {
     const indexPath = path.join(publicDir, 'index.html');
     let html = fs.readFileSync(indexPath, 'utf8');
+
+    // قراءة المفتاح من المتغير
     const key = process.env.GOOGLE_MAP_KEY || '';
+
+    // استبدال المتغير داخل الـ HTML
     html = html.replace('%GOOGLE_MAP_KEY%', key);
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
   } catch (err) {
@@ -58,9 +65,9 @@ app.get('/health', (req, res) => {
   res.send('OK');
 });
 
-// ---------------- Fallback (for shared links etc.) ----------------
+// ---------------- Fallback (للروابط مثل share links) ----------------
 app.get('*', (req, res, next) => {
-  // لا تعالج الملفات أو API عبر fallback
+  // تجاهل الملفات أو API
   if (req.path.includes('.') || req.path.startsWith('/api')) {
     return next();
   }
