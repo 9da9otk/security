@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v16.0 (Express backend + is.gd + interactive share + clean + glass cards + fixes) */
+/* Diriyah Security Map – v16.1 (Express backend + is.gd + interactive share + clean + glass cards + fixes) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -51,7 +51,7 @@ function throttle(fn, ms) {
 let map, trafficLayer, infoWin = null;
 let editMode = true, shareMode = false, cardPinned = false, addMode = false;
 let btnTraffic, btnShare, btnAdd, btnRoute, btnRouteClear;
-let btnRoadmap, btnSatellite;
+let btnRoadmap, btnSatellite, btnEdit;
 let modeBadge, toast;
 let toastTimer = null;
 
@@ -179,10 +179,10 @@ const toHex = (c) => {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 };
 
-/* parse recipients */
+/* parse recipients – يدعم سطر جديد / فاصلة / فاصلة عربية */
 const parseRecipients = t => String(t)
-  .split(/\r?\n/)
-  .map(s => s.replace(/[،;،,]+/g, ' ').trim())
+  .split(/\r?\n|[،;,]+/)
+  .map(s => s.trim())
   .filter(Boolean);
 
 /* ---------------- Share state (short) ---------------- */
@@ -277,13 +277,13 @@ function buildState() {
     st.loc.push([
       +pos.lat().toFixed(6),                // 0 lat
       +pos.lng().toFixed(6),                // 1 lng
-      Math.round(circle.getRadius()),     // 2 radius
-      toHex(circle.get('fillColor')),     // 3 color
-      m.name || it.defaultName || '',     // 4 name
-      m.kind || DEFAULT_MARKER_KIND,      // 5 kind
-      +(m.scale || DEFAULT_MARKER_SCALE), // 6 scale
-      it.fixed ? 1 : 0,                   // 7 fixed flag
-      m.recipients || []                  // 8 recipients array
+      Math.round(circle.getRadius()),       // 2 radius
+      toHex(circle.get('fillColor')),       // 3 color
+      m.name || it.defaultName || '',       // 4 name
+      m.kind || DEFAULT_MARKER_KIND,        // 5 kind
+      +(m.scale || DEFAULT_MARKER_SCALE),   // 6 scale
+      it.fixed ? 1 : 0,                     // 7 fixed flag
+      m.recipients || []                    // 8 recipients array
     ]);
   });
 
@@ -342,7 +342,6 @@ function applyState(st) {
         const [lat, lng, radius, color, name, kind, scale, fixedFlag, recips] = entry;
         let item;
 
-        // This logic handles fresh load: circles[] is empty, so it always hits 'else'
         if (idx < circles.length) {
           item = circles[idx];
           item.marker.setPosition({ lat, lng });
@@ -355,7 +354,6 @@ function applyState(st) {
             lng,
             fixed: !!fixedFlag
           };
-          // We need createMarker and createCircle to be defined (they are below)
           const marker = createMarker(data);
           const circle = createCircle(data);
           item = {
@@ -670,7 +668,7 @@ function extractActivePolyline() {
   flushPersist();
 }
 
-/* Restore route from saved shared state */
+/* Restore route from saved shared state (with geometry fallback) */
 function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleData = null, dist = 0, dur = 0) {
   clearRouteVisuals();
 
@@ -689,43 +687,59 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
     routePoints = routePointsArray.map(p => new google.maps.LatLng(p.lat, p.lng));
   }
 
-  if (polyStr) {
+  let path = null;
+
+  // نحاول استخدام geometry، وإذا لم تتوفر نستخدم نقاط المسار كـ fallback
+  if (
+    polyStr &&
+    typeof google !== 'undefined' &&
+    google.maps &&
+    google.maps.geometry &&
+    google.maps.geometry.encoding &&
+    typeof google.maps.geometry.encoding.decodePath === 'function'
+  ) {
     try {
-      const path = google.maps.geometry.encoding.decodePath(polyStr);
-
-      activeRoutePoly = new google.maps.Polyline({
-        map,
-        path,
-        strokeColor: routeStyle.color,
-        strokeWeight: routeStyle.weight,
-        strokeOpacity: routeStyle.opacity,
-        zIndex: 9997,
-        clickable: true
-      });
-
+      path = google.maps.geometry.encoding.decodePath(polyStr);
       currentRouteOverview = polyStr;
-
-      activeRoutePoly.addListener('click', e => {
-        if (shareMode || !editMode) {
-          openRouteInfoCard(e.latLng, true);
-        } else {
-          openRouteCard(e.latLng);
-        }
-      });
-      
-      activeRoutePoly.addListener('mouseover', () => {
-        if (shareMode || !editMode) return;
-        document.body.style.cursor = 'pointer';
-      });
-
-      activeRoutePoly.addListener('mouseout', () => {
-        if (shareMode || !editMode) return;
-        document.body.style.cursor = '';
-      });
-
     } catch (e) {
       console.error('decode error', e);
+      path = null;
     }
+  }
+
+  if (!path && routePoints.length > 0) {
+    path = routePoints;
+    currentRouteOverview = polyStr || null;
+  }
+
+  if (path && path.length) {
+    activeRoutePoly = new google.maps.Polyline({
+      map,
+      path,
+      strokeColor: routeStyle.color,
+      strokeWeight: routeStyle.weight,
+      strokeOpacity: routeStyle.opacity,
+      zIndex: 9997,
+      clickable: true
+    });
+
+    activeRoutePoly.addListener('click', e => {
+      if (shareMode || !editMode) {
+        openRouteInfoCard(e.latLng, true);
+      } else {
+        openRouteCard(e.latLng);
+      }
+    });
+
+    activeRoutePoly.addListener('mouseover', () => {
+      if (shareMode || !editMode) return;
+      document.body.style.cursor = 'pointer';
+    });
+
+    activeRoutePoly.addListener('mouseout', () => {
+      if (shareMode || !editMode) return;
+      document.body.style.cursor = '';
+    });
   }
 
   if (routePoints.length > 0) {
@@ -779,7 +793,7 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
 /* ---------------- Route Card UI ---------------- */
 
 function openRouteCard(latLng) {
-  if (shareMode) return;
+  if (shareMode || !editMode) return;
 
   if (routeCardWin) routeCardWin.close();
 
@@ -920,7 +934,6 @@ function attachRouteCardEvents() {
       });
     }
     
-    // Persist changes live
     persist();
   }
 
@@ -936,7 +949,7 @@ function attachRouteCardEvents() {
   });
 
   saveBtn.addEventListener('click', () => {
-    flushPersist(); // Final save
+    flushPersist();
     if (routeCardWin) routeCardWin.close();
     routeCardPinned = false;
     showToast('✓ تم حفظ إعدادات المسار');
@@ -998,7 +1011,7 @@ function openRouteInfoCard(latLng, pinned = false) {
         </div>
       </div>
 
-      ${!shareMode ? `
+      ${(!shareMode && editMode) ? `
         <div style="text-align:center;font-size:11px;color:#777;margin-top:12px;padding-top:8px;border-top:1px solid #eee;">
           انقر على الخط لتعديل الإعدادات
         </div>` : ''}
@@ -1055,7 +1068,7 @@ function showHoverCard(item) {
     });
   }
 
-  infoWin.setContent(renderCard(item)); // This was the truncated line
+  infoWin.setContent(renderCard(item));
   infoWin.setPosition(item.marker.getPosition());
   infoWin.open({ map, anchor: item.marker });
 
@@ -1065,7 +1078,7 @@ function showHoverCard(item) {
 }
 
 /**
- * Renders the "Glass Style" info card (Request #5)
+ * Renders the "Glass Style" info card
  */
 function renderCard(item) {
   const m = item.meta;
@@ -1077,15 +1090,13 @@ function renderCard(item) {
   const scale = m.scale || DEFAULT_MARKER_SCALE;
   const recips = Array.isArray(m.recipients) ? m.recipients : [];
 
-  // Requested recipients list (Request #5)
   const recipientsHtml = recips.length > 0
     ? `<div style="font-size:13px;color:#333;margin-top:8px;padding:8px;background:rgba(0,0,0,0.03);border-radius:8px;">
          <strong>المستلمون:</strong> ${escapeHtml(recips.join('، '))}
        </div>`
     : '';
 
-  // Edit controls are hidden in share mode (Request #6)
-  const editControls = !shareMode ? `
+  const editControls = (!shareMode && editMode) ? `
     <div style="margin-top:10px;">
       <label style="font-size:12px;display:block;margin-bottom:2px;">اسم الموقع:</label>
       <input id="info-name" type="text" value="${escapeHtml(name)}"
@@ -1135,7 +1146,6 @@ function renderCard(item) {
     </div>
   `;
 
-  // The glassmorphism style (Request #5)
   return `
   <div id="infowin-root" dir="rtl" style="min-width:320px">
     <div style="background:rgba(255,255,255,0.93);
@@ -1165,14 +1175,12 @@ function renderCard(item) {
  * Attaches event listeners to the "Glass Style" info card
  */
 function attachCardEvents(item) {
-  // Listeners for hover/hide
   const root = document.getElementById('infowin-root');
   if (root) {
     root.addEventListener('mouseenter', () => { cardHovering = true; });
     root.addEventListener('mouseleave', () => { cardHovering = false; scheduleCardHide(); });
   }
 
-  // Close button (always present)
   const closeBtn = document.getElementById('info-close');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -1181,10 +1189,9 @@ function attachCardEvents(item) {
     });
   }
 
-  // If in share mode, stop here (Request #6)
-  if (shareMode) return;
+  // في وضع العرض أو وضع المشاركة: لا تحكم تحرير
+  if (shareMode || !editMode) return;
 
-  // --- Edit Mode Listeners ---
   const saveBtn = document.getElementById('info-save');
   const delBtn = document.getElementById('info-delete');
   const nameEl = document.getElementById('info-name');
@@ -1203,7 +1210,6 @@ function attachCardEvents(item) {
   
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
-      // 1. Update meta
       item.meta.name = nameEl.value.trim();
       item.meta.kind = kindEl.value;
       item.meta.scale = +scaleEl.value;
@@ -1212,7 +1218,6 @@ function attachCardEvents(item) {
       const newColor = colorEl.value || DEFAULT_COLOR;
       const newRadius = clamp(+radiusEl.value, 5, 5000) || DEFAULT_RADIUS;
 
-      // 2. Update circle
       item.circle.setOptions({
         radius: newRadius,
         strokeColor: newColor,
@@ -1220,13 +1225,11 @@ function attachCardEvents(item) {
         fillOpacity: DEFAULT_FILL_OPACITY
       });
 
-      // 3. Update marker icon
       item.marker.setIcon(buildMarkerIcon(newColor, item.meta.scale, item.meta.kind));
 
-      // 4. Close window and save
       if (infoWin) infoWin.close();
       cardPinned = false;
-      flushPersist(); // Request #9
+      flushPersist();
       showToast('✓ تم حفظ الموقع');
     });
   }
@@ -1237,32 +1240,30 @@ function attachCardEvents(item) {
         return;
       }
       
-      // Find and remove from global array
       const idx = circles.findIndex(c => c.id === item.id);
       if (idx > -1) {
         circles.splice(idx, 1);
       }
       
-      // Remove from map
       item.marker.setMap(null);
       item.circle.setMap(null);
       
       if (infoWin) infoWin.close();
       cardPinned = false;
-      flushPersist(); // Request #9
+      flushPersist();
       showToast('تم حذف الموقع');
     });
   }
 }
 
-// --- ADDING OTHER MISSING CORE FUNCTIONS ---
+// --- CORE MAP ITEMS ---
 
 function createMarker(data) {
   const m = new google.maps.Marker({
     position: { lat: data.lat, lng: data.lng },
     map: map,
     icon: buildMarkerIcon(DEFAULT_MARKER_COLOR, DEFAULT_MARKER_SCALE, DEFAULT_MARKER_KIND),
-    draggable: !data.fixed && !shareMode,
+    draggable: !data.fixed && !shareMode && editMode,
     zIndex: 10
   });
   return m;
@@ -1285,7 +1286,6 @@ function createCircle(data) {
 }
 
 function attachListeners(item) {
-  // Marker drag
   item.marker.addListener('drag', () => {
     item.circle.setCenter(item.marker.getPosition());
   });
@@ -1294,7 +1294,6 @@ function attachListeners(item) {
     persist();
   });
 
-  // Click to open card
   item.marker.addListener('click', () => {
     openCard(item);
   });
@@ -1303,7 +1302,6 @@ function attachListeners(item) {
     openCard(item);
   });
 
-  // Hover
   item.circle.addListener('mouseover', () => {
     showHoverCard(item);
   });
@@ -1337,35 +1335,50 @@ function createMapItem(data) {
   return item;
 }
 
-// --- ADDING FUNCTIONS FROM REQUESTS ---
-
 /**
- * Shows a toast message (Helper for Request #4 & #7)
+ * Toast helper – ينشئ Toast تلقائياً إذا لم يوجد في الـ HTML
  */
 function showToast(message) {
-  if (!toast) toast = document.getElementById('toast');
   if (!toast) {
-    console.log('Toast:', message);
-    return;
+    toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'toast';
+      toast.style.position = 'fixed';
+      toast.style.bottom = '16px';
+      toast.style.left = '50%';
+      toast.style.transform = 'translateX(-50%) translateY(6px)';
+      toast.style.background = 'rgba(0,0,0,0.85)';
+      toast.style.color = '#fff';
+      toast.style.padding = '8px 16px';
+      toast.style.borderRadius = '999px';
+      toast.style.fontSize = '13px';
+      toast.style.zIndex = '99999';
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+      document.body.appendChild(toast);
+    }
   }
 
   toast.textContent = message;
-  toast.classList.add('show');
-  
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
-    toast.classList.remove('show');
+    if (!toast) return;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(6px)';
   }, 3000);
 }
 
 /**
- * Handles share button click, shortens URL (Request #4)
+ * Handles share button click, shortens URL
  */
 async function copyShareLink() {
   if (!btnShare) return;
 
-  // 1. Ensure the URL is up-to-date
-  flushPersist(); // Request #9
+  flushPersist();
   
   const longUrl = location.href;
   btnShare.disabled = true;
@@ -1373,7 +1386,6 @@ async function copyShareLink() {
   if (label) label.textContent = 'جاري...';
 
   try {
-    // 2. Call the /api/shorten endpoint
     const response = await fetch('/api/shorten', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1387,9 +1399,7 @@ async function copyShareLink() {
     const data = await response.json();
     
     if (data && data.shortUrl) {
-      // 3. Copy to clipboard
       await navigator.clipboard.writeText(data.shortUrl);
-      // 4. Show confirmation
       showToast('✓ تم نسخ الرابط المختصر');
     } else {
       throw new Error('Invalid short URL response');
@@ -1397,23 +1407,53 @@ async function copyShareLink() {
 
   } catch (error) {
     console.error('Failed to shorten link:', error);
-    // Fallback: copy the long link
-    await navigator.clipboard.writeText(longUrl);
-    showToast('! تعذر الاختصار، تم نسخ الرابط الطويل');
+    try {
+      await navigator.clipboard.writeText(longUrl);
+      showToast('! تعذر الاختصار، تم نسخ الرابط الطويل');
+    } catch (e) {
+      showToast('تعذر نسخ الرابط إلى الحافظة');
+    }
   } finally {
     btnShare.disabled = false;
     if (label) label.textContent = 'مشاركة';
   }
 }
 
+/* ---------------- Edit mode helpers ---------------- */
 
-// --- THE MAIN BOOT FUNCTION (Previously missing) ---
+function applyEditModeUI() {
+  if (!map) return;
+
+  if (modeBadge) {
+    modeBadge.style.display = 'block';
+    modeBadge.textContent = editMode ? 'وضع التحرير' : 'وضع العرض';
+    modeBadge.classList.toggle('edit', editMode);
+    modeBadge.classList.toggle('view', !editMode);
+  }
+
+  circles.forEach(item => {
+    item.marker.setDraggable(editMode && !item.fixed && !shareMode);
+  });
+
+  if (!editMode) {
+    addMode = false;
+    routeMode = false;
+    if (btnAdd) btnAdd.setAttribute('aria-pressed', 'false');
+    if (btnRoute) btnRoute.setAttribute('aria-pressed', 'false');
+    map.setOptions({ draggableCursor: 'grab' });
+  }
+}
+
+// --- MAIN BOOT FUNCTION ---
 
 function boot() {
-  console.log('Booting Diriyah Map v16.0');
+  console.log('Booting Diriyah Map v16.1');
 
   const mapEl = document.getElementById('map');
-  if (!mapEl) return;
+  if (!mapEl || !window.google || !google.maps) {
+    console.error('Google Maps not available');
+    return;
+  }
 
   map = new google.maps.Map(mapEl, {
     center: DEFAULT_CENTER,
@@ -1431,26 +1471,26 @@ function boot() {
   });
   
   trafficLayer = new google.maps.TrafficLayer();
-  
-  // --- State loading (Request #1, #2, #3) ---
+
+  // تحديد وضع المشاركة بناءً على وجود ?x= حتى لو كانت الحالة تالفة
+  const params = new URLSearchParams(location.search);
+  const hasShareParam = params.has('x');
+  shareMode = !!hasShareParam;
+
   const st = readShare();
   if (st) {
     try {
-      // applyState is now guaranteed to run after createMarker/createCircle are defined
-      applyState(st); // This applies loc and route
-      shareMode = true;
-      editMode = false;
+      applyState(st);
     } catch (e) {
       console.error('State apply failed', e);
-      shareMode = false;
-      editMode = true;
-      LOCATIONS.forEach(createMapItem);
     }
-  } else {
-    shareMode = false;
-    editMode = true;
+  }
+
+  if (!st) {
     LOCATIONS.forEach(createMapItem);
   }
+
+  editMode = !shareMode;
 
   // --- Get UI Elements ---
   toast = document.getElementById('toast');
@@ -1463,25 +1503,28 @@ function boot() {
   btnRouteClear = document.getElementById('btn-route-clear');
   btnRoadmap = document.getElementById('btn-roadmap');
   btnSatellite = document.getElementById('btn-satellite');
+  btnEdit = document.getElementById('btn-edit');
 
-  // --- Hide tools in Share Mode (Request #6) ---
+  // --- Hide tools in Share Mode (link view-only) ---
   if (shareMode) {
     if (btnShare) btnShare.style.display = 'none';
     if (btnAdd) btnAdd.style.display = 'none';
     if (btnRoute) btnRoute.style.display = 'none';
     if (btnRouteClear) btnRouteClear.style.display = 'none';
+    if (btnEdit) btnEdit.style.display = 'none';
     
-    // Disable map click for adding
     addMode = false;
     routeMode = false;
     map.setOptions({ draggableCursor: 'grab' });
 
-    // Show mode badge
     if (modeBadge) {
-      modeBadge.textContent = 'وضع العرض';
+      modeBadge.textContent = 'وضع العرض (رابط مشاركة)';
       modeBadge.style.display = 'block';
       modeBadge.classList.add('view');
+      modeBadge.classList.remove('edit');
     }
+  } else {
+    applyEditModeUI();
   }
 
   // --- Map type controls ---
@@ -1489,14 +1532,14 @@ function boot() {
     btnRoadmap.addEventListener('click', () => {
       map.setMapTypeId('roadmap');
       btnRoadmap.setAttribute('aria-pressed', 'true');
-      btnSatellite.setAttribute('aria-pressed', 'false');
+      if (btnSatellite) btnSatellite.setAttribute('aria-pressed', 'false');
       persist();
     });
   }
   if (btnSatellite) {
     btnSatellite.addEventListener('click', () => {
       map.setMapTypeId('hybrid');
-      btnRoadmap.setAttribute('aria-pressed', 'false');
+      if (btnRoadmap) btnRoadmap.setAttribute('aria-pressed', 'false');
       btnSatellite.setAttribute('aria-pressed', 'true');
       persist();
     });
@@ -1516,29 +1559,43 @@ function boot() {
     });
   }
 
-  // --- Share button (Request #4) ---
+  // --- Share button ---
   if (btnShare) {
     btnShare.addEventListener('click', copyShareLink);
   }
 
-  // --- Tool Interaction Logic (Request #7) ---
+  // --- Edit button (تبديل وضع التحرير/العرض في الوضع العادي فقط) ---
+  if (btnEdit && !shareMode) {
+    btnEdit.setAttribute('aria-pressed', editMode ? 'true' : 'false');
+    btnEdit.addEventListener('click', () => {
+      editMode = !editMode;
+      btnEdit.setAttribute('aria-pressed', editMode ? 'true' : 'false');
+      applyEditModeUI();
+      showToast(editMode ? 'تم تفعيل وضع التحرير' : 'تم تفعيل وضع العرض');
+    });
+  }
+
+  // --- Tool Interaction Logic ---
   
   // Add Location button
   if (btnAdd) {
     btnAdd.addEventListener('click', () => {
-      addMode = !addMode; // Toggle
+      if (shareMode) return;
+      if (!editMode) {
+        showToast('لتعديل الخريطة، فعّل وضع التحرير أولاً');
+        return;
+      }
+
+      addMode = !addMode;
       
       if (addMode) {
-        // Deactivate route mode
         routeMode = false;
         if (btnRoute) btnRoute.setAttribute('aria-pressed', 'false');
 
-        // Update UI
         btnAdd.setAttribute('aria-pressed', 'true');
         map.setOptions({ draggableCursor: 'crosshair' });
         showToast('انقر على الخريطة لإضافة موقع');
       } else {
-        // Deactivate
         btnAdd.setAttribute('aria-pressed', 'false');
         map.setOptions({ draggableCursor: 'grab' });
       }
@@ -1548,19 +1605,22 @@ function boot() {
   // Draw Route button
   if (btnRoute) {
     btnRoute.addEventListener('click', () => {
-      routeMode = !routeMode; // Toggle
+      if (shareMode) return;
+      if (!editMode) {
+        showToast('لتعديل المسار، فعّل وضع التحرير أولاً');
+        return;
+      }
+
+      routeMode = !routeMode;
       
       if (routeMode) {
-        // Deactivate add mode
         addMode = false;
         if (btnAdd) btnAdd.setAttribute('aria-pressed', 'false');
         
-        // Update UI
         btnRoute.setAttribute('aria-pressed', 'true');
         map.setOptions({ draggableCursor: 'cell' });
         showToast('انقر على الخريطة لإضافة نقاط المسار');
       } else {
-        // Deactivate
         btnRoute.setAttribute('aria-pressed', 'false');
         map.setOptions({ draggableCursor: 'grab' });
       }
@@ -1570,6 +1630,10 @@ function boot() {
   // Clear Route button
   if (btnRouteClear) {
     btnRouteClear.addEventListener('click', () => {
+      if (shareMode || !editMode) {
+        showToast('لا يمكن تعديل المسار في وضع العرض');
+        return;
+      }
       if (confirm('هل أنت متأكد من حذف المسار الحالي؟')) {
         clearRouteVisuals();
         showToast('تم حذف المسار');
@@ -1578,13 +1642,10 @@ function boot() {
   }
 
   // --- Map Listeners ---
-  
-  // Map click listener (handles tool modes)
   map.addListener('click', (e) => {
-    if (shareMode) return; // Ignore clicks in share mode
+    if (shareMode || !editMode) return;
     
     if (addMode) {
-      // Create a new custom item
       const data = {
         id: 'c' + Date.now(),
         name: 'نقطة جديدة',
@@ -1593,24 +1654,20 @@ function boot() {
         fixed: false
       };
       const item = createMapItem(data);
-      openCard(item); // Open card to edit
+      openCard(item);
       
-      // Turn off add mode after adding one
       addMode = false;
       if (btnAdd) btnAdd.setAttribute('aria-pressed', 'false');
       map.setOptions({ draggableCursor: 'grab' });
     } 
     else if (routeMode) {
-      // Add a point to the route
       addRoutePoint(e.latLng);
     }
   });
 
-  // Map move/zoom listeners
   const throttledPersist = throttle(persist, 1000);
   map.addListener('bounds_changed', throttledPersist);
   map.addListener('zoom_changed', () => {
-    // Re-scale markers
     circles.forEach(item => {
       item.marker.setIcon(buildMarkerIcon(
         toHex(item.circle.get('fillColor')),
@@ -1621,7 +1678,6 @@ function boot() {
     throttledPersist();
   });
 
-  // Initial persist
   if (!shareMode) {
     persist();
   }
