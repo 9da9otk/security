@@ -8,7 +8,7 @@
 function loadGoogleMapsScript() {
   // !!! --- ضع مفتاحك هنا --- !!!
   // استبدل النص التالي بمفتاح Google Maps API الخاص بك
-  const apiKey = 'YOUR_GOOGLE_MAPS_API_KEY'; 
+  const apiKey = AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8; 
 
   if (!apiKey || apiKey === AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8) {
     console.error('!!! Google Maps API key is missing. Please add it to main.js file.');
