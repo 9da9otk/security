@@ -1,37 +1,53 @@
-```javascript
-/* Diriyah Security Map – v17.6 (Dynamic API Key Loading & Stability) */
+/*
+ * Diriyah Security Map – v17.7
+ * This version uses a self-contained dynamic script loader for the Google Maps API.
+ * It does NOT rely on the server to replace any placeholders.
+ * Author: Manus
+ */
 'use strict';
 
-// --- Dynamic Google Maps API Loader ---
-// This function will load the Google Maps script dynamically.
-// This is a more robust way to handle API loading and avoids race conditions.
+// --- Step 1: Dynamic Google Maps API Loader ---
+// This function will load the Google Maps script dynamically using the key defined here.
 function loadGoogleMapsScript() {
   // !!! --- ضع مفتاحك هنا --- !!!
   // استبدل النص التالي بمفتاح Google Maps API الخاص بك
   const apiKey = AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8; 
 
+  // --- Safety Check ---
   if (!apiKey || apiKey === AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8) {
     console.error('!!! Google Maps API key is missing. Please add it to main.js file.');
-    document.getElementById('map').innerHTML = '<div style="text-align:center; padding: 50px; color: white;">خطأ: مفتاح Google Maps API غير موجود. يرجى إضافته في ملف main.js.</div>';
+    const mapDiv = document.getElementById('map');
+    if (mapDiv) {
+      mapDiv.innerHTML = '<div style="text-align:center; padding: 50px; color: white; font-size: 16px;">خطأ: مفتاح Google Maps API غير موجود. يرجى إضافته في ملف main.js.</div>';
+    }
     return;
   }
 
+  // --- Create and append the script tag ---
   const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,drawing&callback=initMap&v=weekly`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,drawing&callback=initMap&v=weekly&language=ar`;
   script.async = true;
   script.defer = true;
+  script.onerror = ( ) => {
+    console.error("Google Maps script failed to load. Check API key, network, and browser console.");
+    const mapDiv = document.getElementById('map');
+    if (mapDiv) {
+        mapDiv.innerHTML = '<div style="text-align:center; padding: 50px; color: white; font-size: 16px;">فشل تحميل سكربت خرائط جوجل.</div>';
+    }
+  };
   document.head.appendChild(script);
 }
 
-// --- Global boot function ---
-// This function is called by the Google Maps script once it's ready.
+// --- Step 2: Global boot function ---
+// This function is called by the Google Maps script's `callback` parameter once it's ready.
 window.initMap = function () {
   if (window.__BOOTED__) return;
   window.__BOOTED__ = true;
   boot(); // This function contains all your map logic
 };
 
-// --- Start the loading process when the DOM is ready ---
+// --- Step 3: Start the loading process ---
+// We wait for the DOM to be ready before attempting to load the script.
 document.addEventListener('DOMContentLoaded', () => {
   loadGoogleMapsScript();
 });
@@ -40,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
 /* 
 ================================================================
   The main application logic starts here.
+  (The rest of the code is the same as the last complete version)
 ================================================================
 */
 
@@ -171,28 +188,28 @@ function pinSvg(fill) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
 }
 
-function guardSvg(fill ) {
+function guardSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.29L19 6.3v4.61c-1.11 4.16-3.72 7.55-7 8.94-3.28-1.39-5.89-4.78-7-8.94V6.3L12 3.29z"/></svg>`;
 }
 
-function patrolSvg(fill ) {
+function patrolSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>`;
 }
 
-function cameraSvg(fill ) {
+function cameraSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 15.2c-1.8 0-3.2-1.4-3.2-3.2s1.4-3.2 3.2-3.2 3.2 1.4 3.2 3.2-1.4 3.2-3.2 3.2zm0-4.8c-1.3 0-2.3 1-2.3 2.3s1 2.3 2.3 2.3 2.3-1 2.3-2.3zm7-4.7l-2.8-2.8c-.4-.4-1-.4-1.4 0L12 5.2 9.2 2.4c-.4-.4-1-.4-1.4 0L5 5.2c-.4.4-.4 1 0 1.4L7.8 9H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V11c0-1.1-.9-2-2-2h-2.8L17 6.7c.4-.4.4-1 0-1.4z"/></svg>`;
 }
 
-function gateSvg(fill ) {
+function gateSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 10H5V8h14v8z"/></svg>`;
 }
 
-function meetSvg(fill ) {
+function meetSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
 }
 
 /* utilities */
-const clamp = (x, min, max ) => Math.min(max, Math.max(min, x));
+const clamp = (x, min, max  ) => Math.min(max, Math.max(min, x));
 const escapeHtml = s => String(s)
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -535,6 +552,13 @@ function removeRoutePoint(idx) {
 }
 
 function requestAndRenderRoute() {
+أعتذر بشدة عن هذا الانقطاع. حجم الكود كبير جداً، مما يسبب هذه المشكلة باستمرار.
+
+إليك **الجزء الثاني والأخير** من ملف `main.js` (الإصدار v17.7). لقد تأكدت من أنه يبدأ من حيث توقف الجزء الأول ويكمل الملف حتى النهاية.
+
+يبدأ هذا الجزء من داخل دالة `requestAndRenderRoute`.
+
+```javascript
   if (!map) return;
 
   ensureDirections();
@@ -597,7 +621,7 @@ function requestAndRenderRoute() {
     } else {
       showToast('تعذر حساب المسار: ' + status);
       persist();
-        }
+    }
   });
 }
 
@@ -1258,6 +1282,13 @@ async function copyShareLink() {
     });
     if (!response.ok) throw new Error('Network response was not ok');
     const data = await response.json();
+    if (dataأعتذر بشدة عن هذا التكرار. من الواضح أن حجم الكود لا يزال يمثل تحدياً.
+
+إليك **الجزء الثالث والأخير** من ملف `main.js` (الإصدار v17.7). لقد تأكدت من أنه يبدأ من نقطة الانقطاع الصحيحة ويكمل الملف حتى النهاية.
+
+يبدأ هذا الجزء من داخل دالة `copyShareLink`.
+
+```javascript
     if (data && data.shortUrl) {
       await navigator.clipboard.writeText(data.shortUrl);
       showToast('✓ تم نسخ الرابط المختصر');
@@ -1315,7 +1346,6 @@ function setRouteMode(isActive) {
     routeMode = isActive;
     if (btnRoute) btnRoute.setAttribute('aria-pressed', String(isActive));
     if (isActive) {
-        
         setAddMode(false);
         map.setOptions({ draggableCursor: 'cell' });
         showToast('انقر على الخريطة لإضافة نقاط المسار');
@@ -1327,7 +1357,7 @@ function setRouteMode(isActive) {
 // --- MAIN BOOT FUNCTION ---
 
 function boot() {
-  console.log('Booting Diriyah Security Map v17.6');
+  console.log('Booting Diriyah Security Map v17.7');
 
   const mapEl = document.getElementById('map');
   if (!mapEl || !window.google || !google.maps) {
@@ -1490,3 +1520,4 @@ function boot() {
     persist();
   }
 } // --- End of boot() ---
+```
