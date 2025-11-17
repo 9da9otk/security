@@ -1,4 +1,4 @@
-/* Diriyah Security Map – v17.0 (Express backend + is.gd + interactive share + clean + glass cards + fixes) */
+/* Diriyah Security Map – v17.1 (Express backend + is.gd + interactive share + clean + glass cards + fixes) */
 'use strict';
 
 /* ---------------- Robust init ---------------- */
@@ -6,7 +6,7 @@ let __BOOTED__ = false;
 
 function tryBoot() {
   if (__BOOTED__) return true;
-  if (window.google && google.maps && document.readyState !== 'loading') {
+  if (window.google && google.maps && google.maps.geometry && document.readyState !== 'loading') {
     __BOOTED__ = true;
     boot();
     return true;
@@ -74,7 +74,9 @@ let routeDuration = 0;
 /* Hover state */
 let cardHovering = false;
 let circleHovering = false;
+let routeHovering = false;
 let cardHideTimer = null;
+let routeInfoHideTimer = null;
 
 function scheduleCardHide() {
   clearTimeout(cardHideTimer);
@@ -84,6 +86,16 @@ function scheduleCardHide() {
       infoWin.close();
     }
   }, 120);
+}
+
+function scheduleRouteInfoHide() {
+    clearTimeout(routeInfoHideTimer);
+    if (routeCardPinned) return;
+    routeInfoHideTimer = setTimeout(() => {
+        if (!routeCardPinned && !routeHovering && routeInfoWin) {
+            routeInfoWin.close();
+        }
+    }, 120);
 }
 
 /* Defaults */
@@ -141,28 +153,28 @@ function pinSvg(fill) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
 }
 
-function guardSvg(fill ) {
+function guardSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.29L19 6.3v4.61c-1.11 4.16-3.72 7.55-7 8.94-3.28-1.39-5.89-4.78-7-8.94V6.3L12 3.29z"/></svg>`;
 }
 
-function patrolSvg(fill ) {
+function patrolSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>`;
 }
 
-function cameraSvg(fill ) {
+function cameraSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 15.2c-1.8 0-3.2-1.4-3.2-3.2s1.4-3.2 3.2-3.2 3.2 1.4 3.2 3.2-1.4 3.2-3.2 3.2zm0-4.8c-1.3 0-2.3 1-2.3 2.3s1 2.3 2.3 2.3 2.3-1 2.3-2.3zm7-4.7l-2.8-2.8c-.4-.4-1-.4-1.4 0L12 5.2 9.2 2.4c-.4-.4-1-.4-1.4 0L5 5.2c-.4.4-.4 1 0 1.4L7.8 9H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V11c0-1.1-.9-2-2-2h-2.8L17 6.7c.4-.4.4-1 0-1.4z"/></svg>`;
 }
 
-function gateSvg(fill ) {
+function gateSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 10H5V8h14v8z"/></svg>`;
 }
 
-function meetSvg(fill ) {
+function meetSvg(fill  ) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="${fill}" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
 }
 
 /* utilities */
-const clamp = (x, min, max ) => Math.min(max, Math.max(min, x));
+const clamp = (x, min, max  ) => Math.min(max, Math.max(min, x));
 const escapeHtml = s => String(s)
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -611,7 +623,7 @@ function requestAndRenderRoute() {
         routeDuration = r.legs.reduce((t, leg) => t + (leg.duration?.value || 0), 0);
       }
 
-      currentRouteOverview = r?.overview_polyline?.points || null;
+      currentRouteOverview = r?.overview_polyline || null;
 
       setTimeout(() => {
         extractActivePolyline();
@@ -648,25 +660,31 @@ function extractActivePolyline() {
   });
 
   activeRoutePoly.addListener('click', e => {
-    if (shareMode || !editMode) {
-      openRouteInfoCard(e.latLng, true);
+    if (editMode) {
+        openRouteCard(e.latLng);
     } else {
-      openRouteCard(e.latLng);
+        openRouteInfoCard(e.latLng, true); // Pin on click in view mode
     }
   });
 
-  activeRoutePoly.addListener('mouseover', () => {
-    if (shareMode || !editMode) return;
+  activeRoutePoly.addListener('mouseover', e => {
+    routeHovering = true;
+    clearTimeout(routeInfoHideTimer);
+    if (!editMode && !routeCardPinned) {
+        openRouteInfoCard(e.latLng, false); // Show on hover in view mode
+    }
     document.body.style.cursor = 'pointer';
   });
 
   activeRoutePoly.addListener('mouseout', () => {
-    if (shareMode || !editMode) return;
+    routeHovering = false;
+    scheduleRouteInfoHide();
     document.body.style.cursor = '';
   });
 
   flushPersist();
 }
+
 /* Restore route from saved shared state (with geometry fallback) */
 function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleData = null, dist = 0, dur = 0) {
   clearRouteVisuals();
@@ -723,21 +741,26 @@ function restoreRouteFromOverview(polyStr, routePointsArray = null, routeStyleDa
     });
 
     activeRoutePoly.addListener('click', e => {
-      if (shareMode || !editMode) {
-        openRouteInfoCard(e.latLng, true);
-      } else {
-        openRouteCard(e.latLng);
-      }
+        if (editMode) {
+            openRouteCard(e.latLng);
+        } else {
+            openRouteInfoCard(e.latLng, true); // Pin on click
+        }
     });
 
-    activeRoutePoly.addListener('mouseover', () => {
-      if (shareMode || !editMode) return;
-      document.body.style.cursor = 'pointer';
+    activeRoutePoly.addListener('mouseover', e => {
+        routeHovering = true;
+        clearTimeout(routeInfoHideTimer);
+        if (!routeCardPinned) {
+            openRouteInfoCard(e.latLng, false); // Show on hover
+        }
+        document.body.style.cursor = 'pointer';
     });
 
     activeRoutePoly.addListener('mouseout', () => {
-      if (shareMode || !editMode) return;
-      document.body.style.cursor = '';
+        routeHovering = false;
+        scheduleRouteInfoHide();
+        document.body.style.cursor = '';
     });
   }
 
@@ -968,6 +991,14 @@ function openRouteInfoCard(latLng, pinned = false) {
       maxWidth: 320,
       pixelOffset: new google.maps.Size(0, -6)
     });
+    
+    google.maps.event.addListener(routeInfoWin, 'domready', () => {
+        const root = document.querySelector('#route-info-root');
+        if (root) {
+            root.addEventListener('mouseenter', () => { routeHovering = true; });
+            root.addEventListener('mouseleave', () => { routeHovering = false; scheduleRouteInfoHide(); });
+        }
+    });
   }
 
   const distanceText = formatDistance(routeDistance);
@@ -976,42 +1007,39 @@ function openRouteInfoCard(latLng, pinned = false) {
   const pointCount = routePoints.length;
 
   const content = `
-  <div dir="rtl" style="min-width:280px">
-    <div style="background:rgba(255,255,255,0.93);
-                backdrop-filter:blur(16px);
-                -webkit-backdrop-filter:blur(16px);
-                border:1px solid rgba(0,0,0,0.06);
+  <div id="route-info-root" dir="rtl" style="min-width:280px">
+    <div style="background:rgba(30,30,30,0.85);
+                backdrop-filter:blur(18px);
+                -webkit-backdrop-filter:blur(18px);
+                border:1px solid rgba(255,255,255,0.1);
                 border-radius:18px;
                 padding:16px;
-                color:#111;">
+                color:#fff;">
       
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-        <div style="width:36px;height:36px;background:${routeStyle.color};
-                    border-radius:10px;display:flex;align-items:center;justify-content:center;">
-          <svg width="18" height="18" fill="white" viewBox="0 0 24 24">
-            <path d="M18 16.4l-5.1-3.2-5.1 3.2-1.8-1.1 6.9-4.3 6.9 4.3-1.8 1.1zM12 2L3 7.6v8.8L12 22l9-5.6V7.6L12 2z"/>
-          </svg>
+        <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);">
+          <img src="img/diriyah-logo.png" style="width:32px;height:32px;">
         </div>
 
         <div style="flex:1;">
           <div style="font-weight:800;font-size:16px;">معلومات المسار</div>
-          <div style="font-size:12px;color:#666;">${pointCount} نقطة</div>
+          <div style="font-size:12px;color:#bbb;">${pointCount} نقطة</div>
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
         <div style="text-align:center;">
-          <div style="font-size:12px;color:#666;">المسافة</div>
+          <div style="font-size:12px;color:#bbb;">المسافة</div>
           <div style="font-weight:700;font-size:14px;">${distanceText}</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:12px;color:#666;">الوقت المتوقع</div>
+          <div style="font-size:12px;color:#bbb;">الوقت المتوقع</div>
           <div style="font-weight:700;font-size:14px;">${durationText}</div>
         </div>
       </div>
 
       ${(!shareMode && editMode) ? `
-        <div style="text-align:center;font-size:11px;color:#777;margin-top:12px;padding-top:8px;border-top:1px solid #eee;">
+        <div style="text-align:center;font-size:11px;color:#999;margin-top:12px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.1);">
           انقر على الخط لتعديل الإعدادات
         </div>` : ''}
     </div>
@@ -1446,7 +1474,7 @@ function applyEditModeUI() {
 // --- MAIN BOOT FUNCTION ---
 
 function boot() {
-  console.log('Booting Diriyah Map v17.0');
+  console.log('Booting Diriyah Map v17.1');
 
   const mapEl = document.getElementById('map');
   if (!mapEl || !window.google || !google.maps) {
@@ -1475,7 +1503,6 @@ function boot() {
   const params = new URLSearchParams(location.search);
   const hasShareParam = params.has('x');
   shareMode = !!hasShareParam;
-
   const st = readShare();
   if (st) {
     try {
@@ -1646,6 +1673,10 @@ function boot() {
     if (cardPinned && infoWin) {
         infoWin.close();
         cardPinned = false;
+    }
+    if (routeCardPinned && routeInfoWin) {
+        routeInfoWin.close();
+        routeCardPinned = false;
     }
       
     if (shareMode || !editMode) return;
