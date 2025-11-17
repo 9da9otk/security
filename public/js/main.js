@@ -8,10 +8,10 @@
 // --- Step 1: Dynamic Google Maps API Loader ---
 function loadGoogleMapsScript() {
   // !!! --- ضع مفتاحك هنا بين علامتي التنصيص --- !!!
-  const apiKey = 'AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8'; 
+  const apiKey = AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8; 
 
   // --- Safety Check ---
-  if (!apiKey || apiKey === 'AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8') {
+  if (!apiKey || apiKey === AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8) {
     console.error('!!! Google Maps API key is missing. Please add it to main.js file.');
     const mapDiv = document.getElementById('map');
     if (mapDiv) {
