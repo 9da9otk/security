@@ -900,14 +900,19 @@ function boot(AdvMarker) {
   persist();
 });
 
-  if (btnSatellite) {
-    btnSatellite.addEventListener('click', () => {
-      map.setMapTypeId('hybrid');
-      if (btnRoadmap) btnRoadmap.setAttribute('aria-pressed', 'false');
-      btnSatellite.setAttribute('aria-pressed', 'true');
-      persist();
-    }
-  }
+ if (btnSatellite) {
+  btnSatellite.addEventListener('click', () => {
+    map.setMapTypeId('hybrid');
+
+    if (btnRoadmap) 
+      btnRoadmap.setAttribute('aria-pressed', 'false');
+
+    btnSatellite.setAttribute('aria-pressed', 'true');
+
+    persist();
+  });
+}
+
   if (btnTraffic) {
     btnTraffic.addEventListener('click', () => {
       const isPressed = btnTraffic.getAttribute('aria-pressed') === 'true';
