@@ -1,42 +1,47 @@
-أهلاً بك، وشكراً جزيلاً على إرسال لقطة الشاشة. هذه الصورة مفيدة جداً وقد كشفت عن الخطأ البرمجي بوضوح.
-
-من خلال تحليل الأخطاء في نافذة المطور (DevTools)، تبين وجود خطأ من نوع `Uncaught SyntaxError: Unexpected token 'if'`. هذا الخطأ يعني أن هناك قوس `}` ناقص في مكان ما قبل السطر 631 في الكود الذي أرسلته لك، مما تسبب في توقف تحميل الخريطة بالكامل.
-
-أعتذر بشدة عن هذا الخطأ. لقد قمت بمراجعة الكود وتحديد مكان القوس المفقود وإضافته. كان القوس ناقصاً في نهاية دالة `restoreRouteFromOverview`.
-
-لقد قمت بإصلاح هذا الخطأ بالإضافة إلى التأكد من أن بقية الكود سليم. سأقوم الآن بإرسال الكود الكامل والمُصحح لك. وكالعادة، سأقسمه إلى جزأين لضمان وصوله كاملاً بدون انقطاع.
-
-### الجزء الأول من الكود (مُصحح):
-
-```html
-/* Diriyah Security Map – v17.5 (Syntax Fix & Stability) */
+```javascript
+/* Diriyah Security Map – v17.6 (Dynamic API Key Loading & Stability) */
 'use strict';
 
-/* ---------------- Robust init ---------------- */
-let __BOOTED__ = false;
+// --- Dynamic Google Maps API Loader ---
+// This function will load the Google Maps script dynamically.
+// This is a more robust way to handle API loading and avoids race conditions.
+function loadGoogleMapsScript() {
+  // !!! --- ضع مفتاحك هنا --- !!!
+  // استبدل النص التالي بمفتاح Google Maps API الخاص بك
+  const apiKey = 'YOUR_GOOGLE_MAPS_API_KEY'; 
 
-function tryBoot() {
-  if (__BOOTED__) return true;
-  if (window.google && google.maps && google.maps.geometry && document.readyState !== 'loading') {
-    __BOOTED__ = true;
-    boot();
-    return true;
+  if (!apiKey || apiKey === AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8) {
+    console.error('!!! Google Maps API key is missing. Please add it to main.js file.');
+    document.getElementById('map').innerHTML = '<div style="text-align:center; padding: 50px; color: white;">خطأ: مفتاح Google Maps API غير موجود. يرجى إضافته في ملف main.js.</div>';
+    return;
   }
-  return false;
+
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,drawing&callback=initMap&v=weekly`;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
 }
 
-window.initMap = function () { tryBoot(); };
+// --- Global boot function ---
+// This function is called by the Google Maps script once it's ready.
+window.initMap = function () {
+  if (window.__BOOTED__) return;
+  window.__BOOTED__ = true;
+  boot(); // This function contains all your map logic
+};
 
+// --- Start the loading process when the DOM is ready ---
 document.addEventListener('DOMContentLoaded', () => {
-  let n = 0, iv = setInterval(() => { if (tryBoot() || ++n > 60) clearInterval(iv); }, 250);
-}, { passive: true });
+  loadGoogleMapsScript();
+});
 
-window.addEventListener('load', tryBoot, { once: true, passive: true });
 
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) tryBoot();
-  else flushPersist();
-}, { passive: true });
+/* 
+================================================================
+  The main application logic starts here.
+================================================================
+*/
 
 /* ---------------- Throttle Function ---------------- */
 function throttle(fn, ms) {
@@ -194,7 +199,6 @@ const escapeHtml = s => String(s)
   .replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;');
 
-/* convert rgba → hex */
 const toHex = (c) => {
   if (!c) return DEFAULT_COLOR;
   if (/^#/.test(c)) return c;
@@ -204,16 +208,13 @@ const toHex = (c) => {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 };
 
-/* parse recipients – يدعم سطر جديد / فاصلة / فاصلة عربية */
 const parseRecipients = t => String(t)
   .split(/\r?\n|[،;,]+/)
   .map(s => s.trim())
   .filter(Boolean);
 
 /* ---------------- Share state (short) ---------------- */
-
 let persistTimer = null;
-
 const persist = () => {
   if (shareMode) return;
   clearTimeout(persistTimer);
@@ -228,7 +229,6 @@ function flushPersist() {
   writeShare(buildState());
 }
 
-/* Base64URL — encode */
 function b64uEncode(s) {
   try {
     const bytes = new TextEncoder().encode(s);
@@ -241,7 +241,6 @@ function b64uEncode(s) {
   }
 }
 
-/* Base64URL — decode */
 function b64uDecode(t) {
   try {
     t = String(t || '').replace(/[^A-Za-z0-9\-_]/g, '');
@@ -256,36 +255,31 @@ function b64uDecode(t) {
   }
 }
 
-/* Read state from ?x= */
 function readShare() {
   const params = new URLSearchParams(location.search);
   const h = params.get('x');
   if (!h) return null;
-
   try {
     const decoded = b64uDecode(h);
     if (!decoded) return null;
-    const s = JSON.parse(decoded);
-    return s;
+    return JSON.parse(decoded);
   } catch (e) {
     console.error('Share state parse error:', e);
     return null;
   }
 }
 
-/* build compact state to minimize length */
 const circles = [];
 
 function buildState() {
   if (!map) return null;
-
   const center = map.getCenter();
   const zoom = map.getZoom();
   const typeId = map.getMapTypeId();
   const trafficOn = trafficLayer && trafficLayer.getMap() != null;
 
   const st = {
-    v: 4, /* version */
+    v: 4,
     c: [ +center.lat().toFixed(6), +center.lng().toFixed(6) ],
     z: zoom,
     t: typeId,
@@ -298,153 +292,96 @@ function buildState() {
     const pos = it.marker.getPosition();
     const circle = it.circle;
     const m = it.meta;
-
     st.loc.push([
-      +pos.lat().toFixed(6),                // 0 lat
-      +pos.lng().toFixed(6),                // 1 lng
-      Math.round(circle.getRadius()),       // 2 radius
-      toHex(circle.get('fillColor')),       // 3 color
-      m.name || it.defaultName || '',       // 4 name
-      m.kind || DEFAULT_MARKER_KIND,        // 5 kind
-      +(m.scale || DEFAULT_MARKER_SCALE),   // 6 scale
-      it.fixed ? 1 : 0,                     // 7 fixed flag
-      m.recipients || []                    // 8 recipients array
+      +pos.lat().toFixed(6),
+      +pos.lng().toFixed(6),
+      Math.round(circle.getRadius()),
+      toHex(circle.get('fillColor')),
+      m.name || it.defaultName || '',
+      m.kind || DEFAULT_MARKER_KIND,
+      +(m.scale || DEFAULT_MARKER_SCALE),
+      it.fixed ? 1 : 0,
+      m.recipients || []
     ]);
   });
 
   if (currentRouteOverview || routePoints.length) {
     st.r = {
       o: currentRouteOverview || null,
-      p: routePoints.map(p => ({
-        lat: +p.lat().toFixed(6),
-        lng: +p.lng().toFixed(6)
-      })),
-      s: {
-        c: routeStyle.color,
-        w: routeStyle.weight,
-        o: routeStyle.opacity
-      },
+      p: routePoints.map(p => ({ lat: +p.lat().toFixed(6), lng: +p.lng().toFixed(6) })),
+      s: { c: routeStyle.color, w: routeStyle.weight, o: routeStyle.opacity },
       d: routeDistance,
       u: routeDuration,
       n: routeName,
       m: routeNotes
     };
   }
-
   return st;
 }
 
-/* write compact state into ?x=... using history.replaceState */
 function writeShare(st) {
   if (!st) return;
   try {
     const json = JSON.stringify(st);
     const encoded = b64uEncode(json);
-    const base = location.origin + location.pathname;
-    const url = base + '?x=' + encoded;
+    const url = `${location.origin}${location.pathname}?x=${encoded}`;
     history.replaceState(null, '', url);
   } catch (e) {
     console.error('writeShare error:', e);
   }
 }
 
-/* restore from state */
 function applyState(st) {
   if (!map || !st) return;
-
   try {
-    if (Array.isArray(st.c) && st.c.length === 2) {
-      map.setCenter({ lat: st.c[0], lng: st.c[1] });
-    }
+    if (Array.isArray(st.c) && st.c.length === 2) map.setCenter({ lat: st.c[0], lng: st.c[1] });
     if (typeof st.z === 'number') map.setZoom(st.z);
     if (st.t) {
         map.setMapTypeId(st.t);
         if (btnRoadmap) btnRoadmap.setAttribute('aria-pressed', st.t === 'roadmap');
         if (btnSatellite) btnSatellite.setAttribute('aria-pressed', st.t === 'hybrid');
     }
-
     if (st.tr && btnTraffic) {
       trafficLayer.setMap(map);
       btnTraffic.setAttribute('aria-pressed', 'true');
     }
-
     if (Array.isArray(st.loc)) {
       st.loc.forEach((entry, idx) => {
         const [lat, lng, radius, color, name, kind, scale, fixedFlag, recips] = entry;
         let item;
-
         if (idx < circles.length) {
           item = circles[idx];
           item.marker.setPosition({ lat, lng });
           item.circle.setCenter({ lat, lng });
         } else {
-          const data = {
-            id: 'sx' + Date.now() + '_' + idx,
-            name: name || 'نقطة',
-            lat,
-            lng,
-            fixed: !!fixedFlag
-          };
+          const data = { id: `sx${Date.now()}_${idx}`, name: name || 'نقطة', lat, lng, fixed: !!fixedFlag };
           const marker = createMarker(data);
           const circle = createCircle(data);
           item = {
-            id: data.id,
-            marker,
-            circle,
-            fixed: !!fixedFlag,
-            defaultName: name || data.name,
-            meta: {
-              name: name || data.name,
-              kind: kind || DEFAULT_MARKER_KIND,
-              scale: scale || DEFAULT_MARKER_SCALE,
-              recipients: Array.isArray(recips) ? recips : []
-            }
+            id: data.id, marker, circle, fixed: !!fixedFlag, defaultName: name || data.name,
+            meta: { name: name || data.name, kind: kind || DEFAULT_MARKER_KIND, scale: scale || DEFAULT_MARKER_SCALE, recipients: Array.isArray(recips) ? recips : [] }
           };
           attachListeners(item);
           circles.push(item);
         }
-
-        item.circle.setOptions({
-          radius: radius || DEFAULT_RADIUS,
-          strokeColor: color || DEFAULT_COLOR,
-          fillColor: color || DEFAULT_COLOR,
-          fillOpacity: DEFAULT_FILL_OPACITY
-        });
-
+        item.circle.setOptions({ radius: radius || DEFAULT_RADIUS, strokeColor: color || DEFAULT_COLOR, fillColor: color || DEFAULT_COLOR, fillOpacity: DEFAULT_FILL_OPACITY });
         item.meta.name = name || item.meta.name;
         item.meta.kind = kind || item.meta.kind;
         item.meta.scale = scale || item.meta.scale;
         item.meta.recipients = Array.isArray(recips) ? recips : [];
-
-        const iconColor = color || DEFAULT_MARKER_COLOR;
-        item.marker.setIcon(buildMarkerIcon(iconColor, item.meta.scale, item.meta.kind));
+        item.marker.setIcon(buildMarkerIcon(color || DEFAULT_MARKER_COLOR, item.meta.scale, item.meta.kind));
       });
     }
-
     if (st.r) {
       const rs = st.r;
-      const style = rs.s ? {
-        color: rs.s.c || routeStyle.color,
-        weight: rs.s.w || routeStyle.weight,
-        opacity: rs.s.o || routeStyle.opacity
-      } : null;
-
-      restoreRouteFromOverview(
-        rs.o || null,
-        Array.isArray(rs.p) ? rs.p : null,
-        style,
-        rs.d || 0,
-        rs.u || 0,
-        rs.n || 'مسار',
-        rs.m || ''
-      );
+      const style = rs.s ? { color: rs.s.c || routeStyle.color, weight: rs.s.w || routeStyle.weight, opacity: rs.s.o || routeStyle.opacity } : null;
+      restoreRouteFromOverview(rs.o || null, Array.isArray(rs.p) ? rs.p : null, style, rs.d || 0, rs.u || 0, rs.n || 'مسار', rs.m || '');
     }
   } catch (e) {
     console.error('applyState error:', e);
   }
 }
 
-/* Format distance/time Arabic */
 function formatDistance(meters) {
   if (meters < 1000) return `${Math.round(meters)} متر`;
   return `${(meters / 1000).toFixed(1)} كم`;
@@ -458,7 +395,6 @@ function formatDuration(seconds) {
   return rem === 0 ? `${hours} ساعة` : `${hours} ساعة و ${rem} دقيقة`;
 }
 
-/* SVG icon builder (marker scaling based on zoom) */
 function buildMarkerIcon(color, userScale, kindId) {
   const currentZoom = (map && typeof map.getZoom === 'function') ? map.getZoom() : BASE_ZOOM;
   const zoomScale = Math.pow(1.6, (currentZoom - BASE_ZOOM) / 1.0);
@@ -468,7 +404,7 @@ function buildMarkerIcon(color, userScale, kindId) {
 
   const kind = MARKER_KINDS.find(k => k.id === kindId) || MARKER_KINDS[0];
   const svg = kind.svg.replace(/fill="([^"]*)"/, `fill="${color || DEFAULT_MARKER_COLOR}"`);
-  const encoded = 'image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+  const encoded = 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
 
   return {
     url: encoded,
@@ -648,14 +584,7 @@ function requestAndRenderRoute() {
 
       if (r?.legs && r.legs.length > 0) {
         routeDistance = r.legs.reduce((t, leg) => t + (leg.distance?.value || 0), 0);
-        routeDuration = r.legs.reduce((t, leg) => t + (leg.duration?.value ||أعتذر بشدة عن هذا الخطأ المتكرر. من الواضح أن حجم الكود كبير جداً ويتم قطعه باستمرار.
-
-إليك **الجزء الثاني والأخير** من الكود. لقد تأكدت من أنه يبدأ من نقطة الانقطاع الصحيحة ويحتوي على كل شيء حتى نهاية الملف.
-
-يبدأ هذا الجزء من داخل دالة `directionsService.route` ويكمل حتى النهاية.
-
-```html
-0), 0);
+        routeDuration = r.legs.reduce((t, leg) => t + (leg.duration?.value || 0), 0);
       }
 
       currentRouteOverview = r?.overview_polyline || null;
@@ -668,7 +597,7 @@ function requestAndRenderRoute() {
     } else {
       showToast('تعذر حساب المسار: ' + status);
       persist();
-    }
+        }
   });
 }
 
@@ -851,7 +780,7 @@ function renderRouteCard() {
     <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:16px; color:#111;">
       
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <img src="img/diriyah-logo.png" style="width:40px; height:40px;">
+        <img src="/img/diriyah-logo.png" style="width:40px; height:40px;">
         <div style="font-weight:800; font-size:16px;">إعدادات المسار</div>
       </div>
 
@@ -999,7 +928,7 @@ function openRouteInfoCard(latLng, pinned = false) {
       
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
         <div style="width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.05);">
-          <img src="img/diriyah-logo.png" style="width:32px; height:32px;">
+          <img src="/img/diriyah-logo.png" style="width:32px; height:32px;">
         </div>
         <div style="flex:1;">
           <div style="font-weight:800; font-size:16px;">${escapeHtml(routeName)}</div>
@@ -1155,7 +1084,7 @@ function renderCard(item) {
     <div style="background:rgba(255,255,255,0.93); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:14px; color:#111;">
       
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-        <img src="img/diriyah-logo.png" style="width:40px; height:40px; border-radius:8px;">
+        <img src="/img/diriyah-logo.png" style="width:40px; height:40px; border-radius:8px;">
         <div style="flex:1;">
           <div style="font-weight:800; font-size:16px;">${escapeHtml(name)}</div>
           <div style="font-size:12px; color:#666;">${kind.label}</div>
@@ -1300,32 +1229,15 @@ function createMapItem(data) {
 }
 
 function showToast(message) {
-  if (!toast) {
-    toast = document.getElementById('toast');
-    if (!toast) {
-      toast = document.createElement('div');
-      toast.id = 'toast';
-      Object.assign(toast.style, {
-        position: 'fixed', bottom: '16px', left: '50%',
-        transform: 'translateX(-50%) translateY(6px)',
-        background: 'rgba(0,0,0,0.85)', color: '#fff',
-        padding: '8px 16px', borderRadius: '999px',
-        fontSize: '13px', zIndex: '99999', opacity: '0',
-        transition: 'opacity 0.2s ease, transform 0.2s ease'
-      });
-      document.body.appendChild(toast);
-    }
-  }
+  if (!toast) toast = document.getElementById('toast');
+  if (!toast) return;
 
   toast.textContent = message;
-  toast.style.opacity = '1';
-  toast.style.transform = 'translateX(-50%) translateY(0)';
+  toast.classList.add('show');
 
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
-    if (!toast) return;
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(-50%) translateY(6px)';
+    toast.classList.remove('show');
   }, 3000);
 }
 
@@ -1350,7 +1262,7 @@ async function copyShareLink() {
       await navigator.clipboard.writeText(data.shortUrl);
       showToast('✓ تم نسخ الرابط المختصر');
     } else {
-      throw new Error('Invalid short URL response');
+      throw new Error(data.error || 'Invalid short URL response');
     }
   } catch (error) {
     console.error('Failed to shorten link:', error);
@@ -1373,14 +1285,7 @@ function applyEditModeUI() {
 
   if (modeBadge) {
     modeBadge.style.display = 'block';
-    modeBadge.textContent = editMode ? 'وضع التحرير' : 'وضعأعتذر بشدة عن هذا الإزعاج المتكرر. من الواضح أن حجم الكود كبير جداً ويتم قطعه باستمرار.
-
-إليك **الجزء الثالث والأخير** من الكود. لقد تأكدت من أنه يبدأ من نقطة الانقطاع الصحيحة ويحتوي على كل شيء حتى نهاية الملف.
-
-يبدأ هذا الجزء من داخل دالة `applyEditModeUI` ويكمل حتى النهاية.
-
-```html
-العرض';
+    modeBadge.textContent = editMode ? 'وضع التحرير' : 'وضع العرض';
     modeBadge.classList.toggle('edit', editMode);
     modeBadge.classList.toggle('view', !editMode);
   }
@@ -1402,7 +1307,7 @@ function setAddMode(isActive) {
         map.setOptions({ draggableCursor: 'crosshair' });
         showToast('انقر على الخريطة لإضافة موقع');
     } else {
-        map.setOptions({ draggableCursor: 'grab' });
+        if (!routeMode) map.setOptions({ draggableCursor: 'grab' });
     }
 }
 
@@ -1410,18 +1315,19 @@ function setRouteMode(isActive) {
     routeMode = isActive;
     if (btnRoute) btnRoute.setAttribute('aria-pressed', String(isActive));
     if (isActive) {
+        
         setAddMode(false);
         map.setOptions({ draggableCursor: 'cell' });
         showToast('انقر على الخريطة لإضافة نقاط المسار');
     } else {
-        map.setOptions({ draggableCursor: 'grab' });
+        if (!addMode) map.setOptions({ draggableCursor: 'grab' });
     }
 }
 
 // --- MAIN BOOT FUNCTION ---
 
 function boot() {
-  console.log('Booting Diriyah Security Map v17.5');
+  console.log('Booting Diriyah Security Map v17.6');
 
   const mapEl = document.getElementById('map');
   if (!mapEl || !window.google || !google.maps) {
@@ -1476,7 +1382,6 @@ function boot() {
       modeBadge.textContent = 'وضع العرض (رابط مشاركة)';
       modeBadge.style.display = 'block';
       modeBadge.classList.add('view');
-      modeBadge.classList.remove('edit');
     }
   } else {
     applyEditModeUI();
@@ -1585,6 +1490,3 @@ function boot() {
     persist();
   }
 } // --- End of boot() ---
-```
-
-آمل أن يكون هذا هو الجزء الأخير الذي تحتاجه. شكراً لك على سعة صدرك.
