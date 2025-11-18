@@ -1181,7 +1181,7 @@ class UIManager {
 
   constructor() {
 
-    this.logo = "/image/logo.png";   // مسار اللوجو
+    this.logo = "/img/logo.png";   // مسار اللوجو
 
     // عناصر التحكم
     this.btnRoadmap     = document.getElementById("btn-roadmap");
