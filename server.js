@@ -11,7 +11,15 @@ console.log('__dirname =', __dirname);
 
 // Middleware
 app.use(express.json());
-app.use(express.static(publicDir));
+
+// خدمة الملفات الثابتة من مجلد public
+app.use(express.static(publicDir, {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    }
+  }
+}));
 
 // Routes
 app.get('/', (req, res) => {
