@@ -78,7 +78,7 @@ app.use('/js', express.static(jsDir, {
   }
 }));
 
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, { index: false }));
 
 // أي صفحة أخرى → index
 app.get('*', renderIndex);
