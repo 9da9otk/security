@@ -8,6 +8,15 @@
 /* ------------------------------------------------------------
    Event Bus — نظام أحداث مركزي لربط الوحدات ببعض
 ------------------------------------------------------------ */
+window.initMap = function () {
+    if (window.MapController && typeof window.MapController.init === 'function') {
+        window.MapController.init();
+    } else {
+        console.error("MapController غير جاهز بعد.");
+    }
+};
+
+
 class EventBus {
   constructor() {
     this.events = {};
@@ -84,9 +93,6 @@ class MapController {
 
     // حفظ مرجع عام
     window.MapController = this;
-
-    // ينتظر initMap من Google Maps
-    window.initMap = () => this.init();
   }
 
   init() {
