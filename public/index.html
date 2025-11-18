@@ -2,17 +2,21 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0" />
   <title>خريطة أمن الدرعية</title>
 
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap"
+        rel="stylesheet">
 
   <style>
     html, body {
       height: 100%;
       margin: 0;
+      font-family: 'Tajawal', sans-serif;
       background: #0b0f14;
-      font-family: "Tajawal", sans-serif;
+      overflow: hidden;
     }
 
     #map {
@@ -23,120 +27,134 @@
       z-index: 1;
     }
 
-    .toolbar {
+    /* Toolbar -------------------------------------------------- */
+    #toolbar {
       position: fixed;
-      top: 12px;
-      right: 12px;
-      z-index: 10000;
+      top: 14px;
+      right: 14px;
+      z-index: 99999;
       display: flex;
       gap: 6px;
-      padding: 8px;
-      background: rgba(20,20,22,0.55);
-      backdrop-filter: blur(12px);
-      border-radius: 14px;
+      padding: 10px;
+      background: rgba(22,22,24,0.55);
       border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
     }
 
     .btn {
       height: 34px;
-      padding: 0 10px;
+      padding: 0 12px;
+      font-size: 13px;
+      cursor: pointer;
       color: white;
       background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
       border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.15);
-      cursor: pointer;
-      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       white-space: nowrap;
     }
 
     .btn[aria-pressed="true"] {
-      background: rgba(66,133,244,0.95);
+      background: rgba(66,133,244,0.8);
       border-color: rgba(66,133,244,1);
     }
 
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* Mode Badge ------------------------------------------------ */
     #mode-badge {
       position: fixed;
-      bottom: 18px;
-      right: 18px;
-      z-index: 99999;
-      padding: 10px 18px;
-      background: rgba(20,20,22,0.55);
+      bottom: 14px;
+      right: 14px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 14px;
       backdrop-filter: blur(12px);
-      border-radius: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
       color: white;
       font-size: 13px;
-      font-weight: 700;
+      z-index: 99999;
       display: none;
     }
+    #mode-badge.edit  { background: rgba(66,133,244,0.7); }
+    #mode-badge.view  { background: rgba(224, 62, 62, 0.7); }
 
+    /* Toast ----------------------------------------------------- */
     #toast {
       position: fixed;
-      bottom: -100px;
+      bottom: -80px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 12px 22px;
-      background: rgba(20,20,22,0.85);
+      padding: 12px 20px;
+      background: rgba(20,20,20,0.9);
       border-radius: 12px;
-      color: #fff;
       border: 1px solid rgba(255,255,255,0.1);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
+      color: white;
       font-size: 14px;
-      white-space: nowrap;
-      z-index: 100000;
-      transition: bottom 0.35s ease;
+      z-index: 999999;
+      min-width: 180px;
+      text-align: center;
+      transition: 0.35s;
+    }
+    #toast.show {
+      bottom: 28px;
     }
 
-    #toast.show { bottom: 25px; }
-
-    .logo-box {
-      position: fixed;
-      top: 12px;
-      left: 12px;
-      z-index: 11000;
-      width: 60px;
-      height: 60px;
-      background: rgba(255,255,255,0.1);
-      border-radius: 12px;
-      backdrop-filter: blur(12px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid rgba(255,255,255,0.15);
+    @media(max-width: 768px) {
+      #toolbar {
+        left: 14px;
+        right: 14px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .btn {
+        flex: 1 1 auto;
+        text-align: center;
+        min-width: 74px;
+      }
     }
-    .logo-box img { width: 46px; }
   </style>
 </head>
 
 <body>
 
+  <!-- الخريطة -->
   <div id="map"></div>
 
-  <!-- Logo -->
-  <div class="logo-box">
-    <img src="img/logo.png" alt="logo">
+  <!-- الأدوات -->
+  <div id="toolbar">
+    <button id="btn-roadmap"     class="btn" aria-pressed="true">طرق</button>
+    <button id="btn-satellite"   class="btn" aria-pressed="false">قمر صناعي</button>
+    <button id="btn-traffic"     class="btn" aria-pressed="false">حركة المرور</button>
+
+    <button id="btn-add"         class="btn" aria-pressed="false">إضافة موقع</button>
+    <button id="btn-route"       class="btn" aria-pressed="false">مسار</button>
+    <button id="btn-route-clear" class="btn" aria-pressed="false">مسح المسار</button>
+
+    <button id="btn-edit"        class="btn" aria-pressed="true">تحرير</button>
+
+    <button id="btn-share"       class="btn">
+      <span class="label">مشاركة</span>
+    </button>
   </div>
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <button id="btn-roadmap" class="btn" aria-pressed="true">طرق</button>
-    <button id="btn-satellite" class="btn">قمر صناعي</button>
-    <button id="btn-traffic" class="btn">حركة المرور</button>
-    <button id="btn-edit" class="btn" aria-pressed="true">تحرير</button>
-    <button id="btn-add" class="btn">إضافة موقع</button>
-    <button id="btn-route" class="btn">مسار</button>
-    <button id="btn-route-clear" class="btn">مسح المسار</button>
-    <button id="btn-share" class="btn">مشاركة</button>
-  </div>
-
+  <!-- شارة الوضع -->
   <div id="mode-badge"></div>
+
+  <!-- toast -->
   <div id="toast"></div>
 
-  <!-- main.js -->
-  <script src="js/main.js"></script>
+  <!-- ملفات السكربت -->
+  <script src="/js/main.js"></script>
 
-  <!-- Google Maps API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&libraries=geometry&callback=initMap" async defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCjX9UJKG53r5ymGydlWEMNbuvi234LcC8&libraries=geometry,marker&callback=initMap"
+          async defer></script>
 
 </body>
 </html>
