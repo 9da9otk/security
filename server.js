@@ -14,16 +14,17 @@ if (!fs.existsSync(jsDir)) fs.mkdirSync(jsDir);
 // Middlewares
 app.use(express.json());
 
-// =========================
-//   Serve index.html (قبل static!)
-// =========================
+/* =======================================================
+   renderIndex — تحميل index.html + استبدال مفتاح Google
+======================================================= */
 function renderIndex(req, res) {
   try {
     const indexPath = path.join(publicDir, 'index.html');
+
     let html = fs.readFileSync(indexPath, 'utf8');
 
-    const key = process.env.GOOGLE_MAP_KEY || '';
-    html = html.replace(/%GOOGLE_MAP_KEY%/g, key);
+    const apiKey = process.env.GOOGLE_MAP_KEY || '';
+    html = html.replace(/%GOOGLE_MAP_KEY%/g, apiKey);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(html);
@@ -34,22 +35,25 @@ function renderIndex(req, res) {
   }
 }
 
+// الصفحة الرئيسية
 app.get('/', renderIndex);
 
 // Health check
 app.get('/health', (req, res) => res.send('OK'));
 
-// =========================
-//   API Shortener is.gd
-// =========================
+/* =======================================================
+   API — is.gd URL Shortener
+======================================================= */
 app.post('/api/shorten', async (req, res) => {
   try {
     const longUrl = req.body.url;
+
     if (!longUrl) {
       return res.status(400).json({ error: 'Missing url in request body' });
     }
 
-    const api = 'https://is.gd/create.php?format=simple&url=' +
+    const api =
+      'https://is.gd/create.php?format=simple&url=' +
       encodeURIComponent(longUrl);
 
     const result = await fetch(api);
@@ -67,9 +71,11 @@ app.post('/api/shorten', async (req, res) => {
   }
 });
 
-// =========================
-//   Static files AFTER index
-// =========================
+/* =======================================================
+   Static Files — يتم تقديمها بدون index.html
+======================================================= */
+
+// تقديم ملفات JS فقط
 app.use('/js', express.static(jsDir, {
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('.js')) {
@@ -78,12 +84,15 @@ app.use('/js', express.static(jsDir, {
   }
 }));
 
+// تقديم ملفات public بدون إرسال index.html
 app.use(express.static(publicDir, { index: false }));
 
-// أي صفحة أخرى → index
+// أي مسار آخر يرجع index.html
 app.get('*', renderIndex);
 
-// تشغيل السيرفر
+/* =======================================================
+   بدء تشغيل الخادم
+======================================================= */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log('Server is running on port', PORT);
