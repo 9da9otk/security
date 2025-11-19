@@ -102,6 +102,7 @@ class MapController {
       center: this.centerDefault,
       zoom: this.zoomDefault,
       mapTypeId: "roadmap",
+      mapId: "b76177e462344e3ee4d9178b",
       streetViewControl: false,
       mapTypeControl: false,
       fullscreenControl: true,
