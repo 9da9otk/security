@@ -1060,34 +1060,38 @@ const ROUTES = new RouteManager();
 /* ============================================================
    StateManager — النظام الرئيس لحفظ واسترجاع state
 ============================================================ */
+/* ============================================================
+   StateManager — إدارة حفظ واسترجاع الحالة
+============================================================ */
 class StateManager {
 
     constructor() {
-
         this.map = null;
         this.shareMode = false;
         this.persistTimer = null;
 
         bus.on("map:ready", map => {
             this.map = map;
-
             this.shareMode = MAP.shareMode;
 
+            // قراءة حالة المشاركة مرة واحدة فقط
             const st = this.readShare();
-            if (st) bus.emit("state:load", st);
+            if (st) {
+                bus.emit("state:load", st);
+            }
 
+            // في الوضع العادي فقط نفعّل الحفظ التلقائي
             if (!this.shareMode) {
                 bus.on("persist", () => this.schedulePersist());
             }
         });
     }
 
+    // بناء الحالة الكاملة الحالية (خريطة + مواقع + مسارات)
     buildState() {
-
         if (!this.map) return null;
 
         const center = this.map.getCenter();
-
         return {
             v: 1,
             map: {
@@ -1101,20 +1105,23 @@ class StateManager {
         };
     }
 
+    // كتابة الحالة في URL (بدون اختصار)
     writeShare(st) {
-
         try {
             const json = JSON.stringify(st);
             const encoded = Utils.b64uEncode(json);
             const base = location.origin + location.pathname;
-            history.replaceState(null, "", base + "?x=" + encoded);
+            const url = base + "?x=" + encoded;
+            history.replaceState(null, "", url);
+            return url;              // مهم: نرجع الرابط للتحكم فيه من ShareManager
         } catch (e) {
             console.error("writeShare error", e);
+            return location.href;    // fallback
         }
     }
 
+    // حفظ تلقائي (يستخدم writeShare لكن لا يهمنا هنا رابط النسخ)
     schedulePersist() {
-
         if (this.shareMode) return;
 
         clearTimeout(this.persistTimer);
@@ -1124,8 +1131,8 @@ class StateManager {
         }, 300);
     }
 
+    // قراءة حالة المشاركة من ?x=
     readShare() {
-
         try {
             const p = new URLSearchParams(location.search);
             const x = p.get("x");
@@ -1146,15 +1153,17 @@ const STATE = new StateManager();
 
 
 
+
 /* ============================================================
    ShareManager — محاولة اختصار + fallback تلقائي
+============================================================ */
+/* ============================================================
+   ShareManager — إنشاء رابط المشاركة (طويل + محاولة اختصار)
 ============================================================ */
 class ShareManager {
 
     constructor() {
-
         this.btn = document.getElementById("btn-share");
-
         if (this.btn) {
             this.btn.addEventListener("click", () => this.generateShareLink());
         }
@@ -1162,10 +1171,15 @@ class ShareManager {
 
     async generateShareLink() {
 
-        bus.emit("persist");
-        await new Promise(r => setTimeout(r, 150));
+        // نبني الحالة الحالية مباشرة (بدون الاعتماد على bus.emit("persist"))
+        const st = STATE.buildState();
+        if (!st) {
+            bus.emit("toast", "تعذر إنشاء رابط المشاركة");
+            return;
+        }
 
-        const longUrl = location.href;
+        // نكتب الحالة في الرابط ونأخذ الرابط النهائي الذي يحتوي ?x=
+        const longUrl = STATE.writeShare(st);
 
         const label = this.btn.querySelector(".label");
         const original = label ? label.textContent : null;
@@ -1173,36 +1187,36 @@ class ShareManager {
         this.btn.disabled = true;
         if (label) label.textContent = "جاري النسخ…";
 
+        let finalUrl = longUrl;
+
         try {
-            const api =
-                "https://is.gd/create.php?format=json&url=" +
-                encodeURIComponent(longUrl);
+            // نحاول اختصار الرابط عبر is.gd (اختياري)
+            const api = "https://is.gd/create.php?format=json&url=" +
+                        encodeURIComponent(longUrl);
 
             const res = await fetch(api);
             const data = await res.json();
 
-            const shortUrl = data.shorturl;
+            if (data && data.shorturl) {
+                // ملاحظة: is.gd لا يظهر ?x= في shorturl، لكن عند الفتح يعيد التوجيه للرابط الكامل
+                finalUrl = data.shorturl;
+            }
+        } catch (err) {
+            console.error("is.gd error", err);
+            // في حالة الفشل نستخدم الرابط الطويل
+            finalUrl = longUrl;
+        }
 
-            // إذا is.gd حذف x= → رجع للرابط الطويل
-            const finalUrl =
-                shortUrl && shortUrl.includes("?x=") ? shortUrl : longUrl;
-
+        try {
             await navigator.clipboard.writeText(finalUrl);
-
             bus.emit("toast", "تم نسخ رابط المشاركة");
+        } catch (e) {
+            console.error("Clipboard error", e);
+            bus.emit("toast", "تعذر النسخ إلى الحافظة");
         }
 
-        catch (err) {
-            console.error(err);
-            // fallback للرابط الطويل
-            await navigator.clipboard.writeText(longUrl);
-            bus.emit("toast", "تم نسخ الرابط الطويل");
-        }
-
-        finally {
-            this.btn.disabled = false;
-            if (label) label.textContent = original || "مشاركة";
-        }
+        this.btn.disabled = false;
+        if (label) label.textContent = original || "مشاركة";
     }
 }
 
