@@ -557,17 +557,18 @@ class LocationManager {
     }
 
 
-    exportState() {
-        return this.items.map(it => ({
-            id: it.id,
-            name: it.name,
-            lat: it.marker.position.lat,
-            lng: it.marker.position.lng,
-            color: it.color,
-            radius: it.radius,
-            recipients: it.recipients
-        }));
-    }
+    // في كلاس LocationManager
+exportState() {
+    return this.items.map(it => ({
+        id: it.id,
+        name: it.name,
+        lat: it.marker.position.lat(), // <-- تم التصحيح هنا (أضفنا الأقواس)
+        lng: it.marker.position.lng(), // <-- تم التصحيح هنا (أضفنا الأقواس)
+        color: it.color,
+        radius: it.radius,
+        recipients: it.recipients
+    }));
+}
 
 
     applyState(state) {
@@ -1002,18 +1003,19 @@ class RouteManager {
         });
     }
 
-    exportState() {
-        return this.routes.map(rt => ({
-            id: rt.id,
-            color: rt.color,
-            weight: rt.weight,
-            opacity: rt.opacity,
-            distance: rt.distance,
-            duration: rt.duration,
-            overview: rt.overview,
-            points: rt.points.map(p => ({ lat: p.lat, lng: p.lng }))
-        }));
-    }
+    // في كلاس RouteManager
+exportState() {
+    return this.routes.map(rt => ({
+        id: rt.id,
+        color: rt.color,
+        weight: rt.weight,
+        opacity: rt.opacity,
+        distance: rt.distance,
+        duration: rt.duration,
+        overview: rt.overview,
+        points: rt.points.map(p => ({ lat: p.lat(), lng: p.lng() })) // <-- تم التصحيح هنا (أضفنا الأقواس)
+    }));
+}
 
     applyState(state) {
 
