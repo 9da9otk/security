@@ -444,12 +444,6 @@ const ROUTES = new RouteManager();
 /* ============================================================
    PolygonManager — إدارة المضلعات + بطاقات Glass (مُصلح)
 ============================================================ */
-/* ============================================================
-   PolygonManager — إدارة المضلعات + بطاقات Glass (مُصلح)
-============================================================ */
-/* ============================================================
-   PolygonManager — إدارة المضلعات + بطاقات Glass (مع حفظ الخصائص)
-============================================================ */
 class PolygonManager {
 
     constructor() {
@@ -494,7 +488,17 @@ class PolygonManager {
         if (poly.activePolyline) poly.activePolyline.setMap(null);
         poly.markers.forEach(m => m.map = null);
         if (poly.points.length >= 3) {
-            poly.polygon = new google.maps.Polygon({ paths: poly.points, map: this.map, strokeColor: poly.color, strokeOpacity: poly.strokeOpacity, strokeWeight: poly.strokeWeight, fillColor: poly.color, fillOpacity: poly.fillOpacity, zIndex: 5 });
+            poly.polygon = new google.maps.Polygon({
+                paths: poly.points,
+                map: this.map,
+                strokeColor: poly.color,
+                strokeOpacity: poly.strokeOpacity,
+                strokeWeight: poly.strokeWeight,
+                fillColor: poly.color,
+                fillOpacity: poly.fillOpacity,
+                zIndex: 5,
+                clickable: true // تأكيد أن المضلع قابل للنقر
+            });
             this.addPolygonEditListeners(poly, this.activePolygonIndex);
             bus.emit("persist");
         } else { this.polygons.pop(); }
@@ -518,12 +522,21 @@ class PolygonManager {
         const el = document.createElement("div"); el.style.width = "12px"; el.style.height = "12px"; el.style.borderRadius = "50%"; el.style.background = "white"; el.style.border = `2px solid ${color}`; el.style.cursor = 'pointer'; return el;
     }
 
-    // --- دوال التحرير الجديدة ---
+    // --- دوال التحرير ---
     addPolygonEditListeners(poly, index) {
-        poly.polygon.addListener("click", (e) => { if (this.editingPolygonIndex !== index) this.insertVertex(poly, index, e.latLng); });
+        // تم تصحيح هذا الجزء: دمج مستمعي النقر في مستمع واحد
+        poly.polygon.addListener("click", (e) => {
+            if (this.editingPolygonIndex === index) {
+                // إذا كنا في وضع التحرير، أضف نقطة جديدة
+                this.insertVertex(poly, index, e.latLng);
+            } else {
+                // إذا لم نكن في وضع التحرير، افتح كرت التعديل
+                this.openCard(index, false);
+            }
+        });
+
         poly.polygon.addListener("mouseover", () => { if (!this.cardPinned) this.openCard(index, true); });
         poly.polygon.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); });
-        poly.polygon.addListener("click", () => { if (this.editingPolygonIndex !== index) this.openCard(index, false); });
     }
 
     enterEditMode(index) {
@@ -565,43 +578,11 @@ class PolygonManager {
     openCard(polyIndex, hoverOnly = false) {
         const poly = this.polygons[polyIndex]; const isEditingShape = this.editingPolygonIndex === polyIndex;
         const isEditable = !hoverOnly && MAP.editMode && !isEditingShape;
-
         const cardStyle = `background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 0; color: #333; direction: rtl; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2); max-width: 95vw; width: auto; box-sizing: border-box; overflow: hidden;`;
         const headerStyle = `display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255, 255, 255, 0.5); border-bottom: 1px solid rgba(255, 255, 255, 0.4);`;
         const bodyStyle = `padding: 20px;`;
         const footerStyle = `padding: 12px 20px; background: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255, 255, 255, 0.4);`;
-
-        const html = `
-        <div style="${cardStyle}">
-            <div style="${headerStyle}"><h3 style="margin:0; font-size: 18px; font-weight: 700;">${Utils.escapeHTML(poly.name)}</h3><img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;"></div>
-            ${isEditingShape ? `<div style="${bodyStyle}"><p style="margin: 0; color: #555; text-align:center;">اسحب النقاط لتعديل الشكل. انقر على الحدود لإضافة نقطة. انقر بزر الماوس الأيمن على نقطة لحذفها.</p></div><div style="${footerStyle}"><button id="poly-stop-edit" style="width: 100%; background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600;">إنهاء التحرير</button></div>` : 
-            (isEditable ? `
-                <div style="${bodyStyle}">
-                    <div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">الاسم:</label><input id="poly-name" type="text" value="${Utils.escapeHTML(poly.name)}" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div>
-                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;">
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="poly-color" type="color" value="${poly.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div>
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">سماكة الحدود:</label><input id="poly-stroke" type="number" value="${poly.strokeWeight}" min="1" max="10" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div>
-                    </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="font-size:12px; display:block; margin-bottom:4px;">شفافية الحدود: <span id="poly-stroke-opacity-val">${Math.round(poly.strokeOpacity * 100)}%</span></label>
-                        <input id="poly-stroke-opacity" type="range" min="0" max="100" value="${Math.round(poly.strokeOpacity * 100)}" style="width:100%;">
-                    </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة (الداخل): <span id="poly-fill-opacity-val">${Math.round(poly.fillOpacity * 100)}%</span></label>
-                        <input id="poly-fill-opacity" type="range" min="0" max="100" value="${Math.round(poly.fillOpacity * 100)}" style="width:100%;">
-                    </div>
-                </div>
-                <div style="${footerStyle}">
-                    <div style="display:flex;gap:8px; flex-wrap: wrap;">
-                        <button id="poly-save-properties" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ الخصائص</button>
-                        <button id="poly-edit-shape" style="flex:2;background:#34a853;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">تعديل الشكل</button>
-                        <button id="poly-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button>
-                        <button id="poly-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button>
-                    </div>
-                </div>` : '')
-            }
-        </div>`;
-        
+        const html = `<div style="${cardStyle}"><div style="${headerStyle}"><h3 style="margin:0; font-size: 18px; font-weight: 700;">${Utils.escapeHTML(poly.name)}</h3><img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;"></div>${isEditingShape ? `<div style="${bodyStyle}"><p style="margin: 0; color: #555; text-align:center;">اسحب النقاط لتعديل الشكل. انقر على الحدود لإضافة نقطة. انقر بزر الماوس الأيمن على نقطة لحذفها.</p></div><div style="${footerStyle}"><button id="poly-stop-edit" style="width: 100%; background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600;">إنهاء التحرير</button></div>` : (isEditable ? `<div style="${bodyStyle}"><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">الاسم:</label><input id="poly-name" type="text" value="${Utils.escapeHTML(poly.name)}" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div><div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;"><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="poly-color" type="color" value="${poly.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">سماكة الحدود:</label><input id="poly-stroke" type="number" value="${poly.strokeWeight}" min="1" max="10" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div></div><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">شفافية الحدود: <span id="poly-stroke-opacity-val">${Math.round(poly.strokeOpacity * 100)}%</span></label><input id="poly-stroke-opacity" type="range" min="0" max="100" value="${Math.round(poly.strokeOpacity * 100)}" style="width:100%;"></div><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة (الداخل): <span id="poly-fill-opacity-val">${Math.round(poly.fillOpacity * 100)}%</span></label><input id="poly-fill-opacity" type="range" min="0" max="100" value="${Math.round(poly.fillOpacity * 100)}" style="width:100%;"></div></div><div style="${footerStyle}"><div style="display:flex;gap:8px; flex-wrap: wrap;"><button id="poly-save-properties" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ الخصائص</button><button id="poly-edit-shape" style="flex:2;background:#34a853;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">تعديل الشكل</button><button id="poly-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button><button id="poly-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button></div></div>` : '')}</div>`;
         if (!this.infoWin) this.infoWin = new google.maps.InfoWindow({ maxWidth: 400 });
         this.infoWin.setContent(html);
         this.infoWin.setPosition(this.getPolygonCenter(poly));
@@ -613,54 +594,25 @@ class PolygonManager {
     getPolygonCenter(poly) { const bounds = new google.maps.LatLngBounds(); poly.points.forEach(pt => bounds.extend(pt)); return bounds.getCenter(); }
     attachCardEvents(polyIndex, hoverOnly) {
         const poly = this.polygons[polyIndex]; const isEditingShape = this.editingPolygonIndex === polyIndex;
-        
-        if (isEditingShape) {
-            const stopEditBtn = document.getElementById("poly-stop-edit");
-            if(stopEditBtn) stopEditBtn.addEventListener("click", () => { this.exitEditMode(); this.infoWin.close(); this.cardPinned = false; });
-            return;
-        }
-
+        if (isEditingShape) { const stopEditBtn = document.getElementById("poly-stop-edit"); if(stopEditBtn) stopEditBtn.addEventListener("click", () => { this.exitEditMode(); this.infoWin.close(); this.cardPinned = false; }); return; }
         if (hoverOnly || !MAP.editMode) return;
-        
-        // --- تعديل: إضافة زر حفظ الخصائص ---
-        const savePropsBtn = document.getElementById("poly-save-properties");
-        const editShapeBtn = document.getElementById("poly-edit-shape"); const delBtn = document.getElementById("poly-delete"); const closeBtn = document.getElementById("poly-close");
+        const savePropsBtn = document.getElementById("poly-save-properties"); const editShapeBtn = document.getElementById("poly-edit-shape"); const delBtn = document.getElementById("poly-delete"); const closeBtn = document.getElementById("poly-close");
         const nameEl = document.getElementById("poly-name"); const colEl = document.getElementById("poly-color"); const strokeEl = document.getElementById("poly-stroke"); const strokeOpEl = document.getElementById("poly-stroke-opacity"); const fillOpEl = document.getElementById("poly-fill-opacity");
         const strokeOpValEl = document.getElementById("poly-stroke-opacity-val"); const fillOpValEl = document.getElementById("poly-fill-opacity-val");
-
         if(strokeOpEl) { strokeOpEl.addEventListener("input", () => { if(strokeOpValEl) strokeOpValEl.textContent = strokeOpEl.value + "%"; }); }
         if(fillOpEl) { fillOpEl.addEventListener("input", () => { if(fillOpValEl) fillOpValEl.textContent = fillOpEl.value + "%"; }); }
-
-        if (savePropsBtn) {
-            savePropsBtn.addEventListener("click", () => {
-                poly.name = nameEl.value.trim();
-                poly.color = colEl.value;
-                poly.strokeWeight = Utils.clamp(+strokeEl.value, 1, 10);
-                poly.strokeOpacity = Utils.clamp(+strokeOpEl.value, 0, 100) / 100;
-                poly.fillOpacity = Utils.clamp(+fillOpEl.value, 0, 100) / 100;
-
-                poly.polygon.setOptions({
-                    fillColor: poly.color,
-                    strokeColor: poly.color,
-                    strokeWeight: poly.strokeWeight,
-                    strokeOpacity: poly.strokeOpacity,
-                    fillOpacity: poly.fillOpacity
-                });
-
-                bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ خصائص المضلع");
-            });
-        }
-
+        if (savePropsBtn) savePropsBtn.addEventListener("click", () => { poly.name = nameEl.value.trim(); poly.color = colEl.value; poly.strokeWeight = Utils.clamp(+strokeEl.value, 1, 10); poly.strokeOpacity = Utils.clamp(+strokeOpEl.value, 0, 100) / 100; poly.fillOpacity = Utils.clamp(+fillOpEl.value, 0, 100) / 100; poly.polygon.setOptions({ fillColor: poly.color, strokeColor: poly.color, strokeWeight: poly.strokeWeight, strokeOpacity: poly.strokeOpacity, fillOpacity: poly.fillOpacity }); bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ خصائص المضلع"); });
         if (editShapeBtn) editShapeBtn.addEventListener("click", () => { this.enterEditMode(polyIndex); this.infoWin.close(); this.cardPinned = false; });
         if (delBtn) delBtn.addEventListener("click", () => { if (!confirm(`حذف "${poly.name}"؟`)) return; poly.polygon.setMap(null); this.polygons = this.polygons.filter(p => p.id !== poly.id); this.infoWin.close(); this.cardPinned = false; bus.emit("persist"); bus.emit("toast", "تم حذف المضلع"); });
         if (closeBtn) closeBtn.addEventListener("click", () => { this.infoWin.close(); this.cardPinned = false; });
     }
 
     exportState() { return this.polygons.filter(p => p.polygon).map(poly => ({ id: poly.id, name: poly.name, color: poly.color, strokeWeight: poly.strokeWeight, strokeOpacity: poly.strokeOpacity, fillOpacity: poly.fillOpacity, points: poly.points.map(p => ({ lat: typeof p.lat === 'function' ? p.lat() : p.lat, lng: typeof p.lng === 'function' ? p.lng() : p.lng })) })); }
-    applyState(state) { if (!state || !state.polygons) return; this.polygons.forEach(p => { if (p.polygon) p.polygon.setMap(null); }); this.polygons = []; state.polygons.forEach(polyData => { const newPoly = { id: polyData.id, name: polyData.name, color: polyData.color, strokeWeight: polyData.strokeWeight, strokeOpacity: polyData.strokeOpacity, fillOpacity: polyData.fillOpacity, points: polyData.points.map(p => new google.maps.LatLng(p.lat, p.lng)), polygon: null, markers: [], activePolyline: null, vertexMarkers: [] }; newPoly.polygon = new google.maps.Polygon({ paths: newPoly.points, map: this.map, strokeColor: newPoly.color, strokeOpacity: newPoly.strokeOpacity, strokeWeight: newPoly.strokeWeight, fillColor: newPoly.color, fillOpacity: newPoly.fillOpacity, zIndex: 5 }); this.addPolygonEditListeners(newPoly, this.polygons.length); this.polygons.push(newPoly); }); }
+    applyState(state) { if (!state || !state.polygons) return; this.polygons.forEach(p => { if (p.polygon) p.polygon.setMap(null); }); this.polygons = []; state.polygons.forEach(polyData => { const newPoly = { id: polyData.id, name: polyData.name, color: polyData.color, strokeWeight: polyData.strokeWeight, strokeOpacity: polyData.strokeOpacity, fillOpacity: polyData.fillOpacity, points: polyData.points.map(p => new google.maps.LatLng(p.lat, p.lng)), polygon: null, markers: [], activePolyline: null, vertexMarkers: [] }; newPoly.polygon = new google.maps.Polygon({ paths: newPoly.points, map: this.map, strokeColor: newPoly.color, strokeOpacity: newPoly.strokeOpacity, strokeWeight: newPoly.strokeWeight, fillColor: newPoly.color, fillOpacity: newPoly.fillOpacity, zIndex: 5, clickable: true }); this.addPolygonEditListeners(newPoly, this.polygons.length); this.polygons.push(newPoly); }); }
 }
 
 const POLYGONS = new PolygonManager();
+
 
 /* ============================================================
    StateManager — النظام الرئيس لحفظ واسترجاع state
