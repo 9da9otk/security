@@ -615,9 +615,8 @@ const STATE = new StateManager();
    ShareManager — محاولة اختصار + fallback تلقائي
 ============================================================ */
 /* ============================================================
-   ShareManager — محاولة اختصار + نسخ متوافق مع الجوال
+   ShareManager — نسخ آمن مع حل يدوي للجوال
 ============================================================ */
-
 class ShareManager {
 
     constructor() {
@@ -656,34 +655,97 @@ class ShareManager {
             finalUrl = longUrl;
         }
 
-        // === تعديل النسخ ليكون متوافقًا مع الجوال ===
+        // === محاولة النسخ الحديث، وإذا فشل نعرض النافذة اليدوية ===
         try {
-            // الطريقة الحديثة (تعمل على معظم المتصفحات)
             await navigator.clipboard.writeText(finalUrl);
             bus.emit("toast", "تم نسخ رابط المشاركة");
         } catch (err) {
-            console.error("Modern clipboard failed, falling back.", err);
-            // طريقة بديلة للمتصفحات القديمة و iOS
-            this.fallbackCopyToClipboard(finalUrl);
-            bus.emit("toast", "تم نسخ رابط المشاركة");
+            console.error("Clipboard copy failed, showing manual dialog.", err);
+            this.showManualCopyDialog(finalUrl);
         }
-        // ===============================================
+        // ==========================================================
 
         this.btn.disabled = false;
         if (label) label.textContent = original || "مشاركة";
     }
 
-    // دالة النسخ البديلة
-    fallbackCopyToClipboard(text) {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed"; // لمنع التمرير إلى الأسفل
-        textArea.style.left = "-999999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
+    // دالة لعرض نافذة النسخ اليدوي
+    showManualCopyDialog(url) {
+        // إنشاء طبقة خلفية شفافة
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        `;
+
+        // إنشاء صندوق المحتوى
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 90%;
+            width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            direction: rtl;
+        `;
+
+        dialog.innerHTML = `
+            <h3 style="margin-top: 0; margin-bottom: 16px; color: #333;">تعذر النسخ التلقائي</h3>
+            <p style="margin-bottom: 20px; color: #666; line-height: 1.5;">
+                الرجاء الضغط مطولاً على الرابط أدناه واختيار "نسخ" من القائمة.
+            </p>
+            <textarea readonly style="
+                width: 100%;
+                height: 80px;
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #ccc;
+                font-size: 14px;
+                text-align: center;
+                resize: none;
+                direction: ltr;
+                box-sizing: border-box;
+            ">${url}</textarea>
+            <button id="manual-copy-close" style="
+                margin-top: 20px;
+                width: 100%;
+                padding: 12px;
+                background-color: #4285f4;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+            ">إغلاق</button>
+        `;
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        // إضافة حدث للإغلاق
+        document.getElementById('manual-copy-close').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+        });
+
+        // إغلاق عند الضغط على الخلفية
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+            }
+        });
     }
 }
 
