@@ -217,6 +217,9 @@ const MAP = new MapController();
 /* ============================================================
    LocationManager — المواقع + بطاقات Glass (متجاوبة مع الجوال)
 ============================================================ */
+/* ============================================================
+   LocationManager — المواقع + بطاقات Glass (مُصلح)
+============================================================ */
 class LocationManager {
 
     constructor() {
@@ -229,11 +232,35 @@ class LocationManager {
 
     onMapReady() {
         if (!this.shareMode && this.items.length === 0) this.loadDefaultLocations();
-        this.map.addListener("click", () => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); this.cardPinned = false; });
+
+        // مستمع النقر لإضافة موقع جديد (كان مفقودًا)
+        this.map.addListener("click", e => {
+            if (!MAP.modeAdd || this.shareMode) return;
+            this.addItem({
+                id: "d" + Date.now() + Math.random(),
+                lat: e.latLng.lat(),
+                lng: e.latLng.lng(),
+                radius: 22,
+                color: "#ff0000",
+                fillOpacity: 0.3,
+                recipients: []
+            });
+            // إيقاف وضع الإضافة بعد إضافة موقع واحد
+            MAP.modeAdd = false;
+            UI.showDefaultUI();
+            bus.emit("persist");
+            bus.emit("toast", "تمت إضافة موقع جديد");
+        });
+
+        // مستمع النقر لإغلاق الكروت
+        this.map.addListener("click", () => {
+            if (!this.cardPinned && this.infoWin) this.infoWin.close();
+            this.cardPinned = false;
+        });
     }
 
     loadDefaultLocations() {
-        const LOCS = [{ name: "المسار الرياضي طريق الامام", lat: 24.740804166258606, lng:  46.58673056179068 }, { name: "نقطة الحبيب", lat: 24.709466574642548, lng:  46.59394349401716 }, { name: "نقطة راس النعامة", lat: 24.710367751013603, lng:  46.572909747949716 }, { name: "نقطة دوار صفار", lat: 24.72490650528227, lng:  46.57345442507346 }, { name: "نقطة بيت مبارك", lat: 24.73258723792855, lng:  46.578281049954626 }, { name: "غصيبة", lat: 24.745868749375994, lng:  46.56062200182871 }, { name: "دوار الروقية", lat: 24.741955461299774, lng:  46.5626435899081 }, { name: "مواقف الأمن", lat: 24.73789331677763, lng:  46.577883707394676 }, { name: "كار بارك", lat: 24.738312836363594, lng:  46.577887233188875 }, { name: "م 9", lat: 24.738863654773827, lng: 46.580461229561074 }, { name: "بوابة سمحان", lat: 24.742132, lng: 46.569503 }, { name: "منطقة سمحان", lat: 24.740913, lng: 46.571891 }, { name: "دوار البجيري", lat: 24.737521, lng: 46.574069 }, { name: "مسار المشاة عذيبة", lat: 24.73615951318394, lng: 46.576994024788895 }, { name: "نقطة فرز الشلهوب", lat: 24.73521034223403, lng: 46.57782136115348 }, { name: "مسار المشاة المديد", lat: 24.735478057536785, lng: 46.581036921033615 }, { name: "ميدان الملك سلمان", lat: 24.736162553141824, lng: 46.58399121850484 }, { name: "دوار الضوء الخافت", lat: 24.73977210676454, lng: 46.58359282165422 }, { name: "دوار البلدية", lat: 24.739257985106182, lng: 46.58175727235508 }, { name: "إشارة البجيري", lat: 24.737662, lng: 46.575429 }];
+        const LOCS = [{ name: "بوابة سمحان", lat: 24.742132, lng: 46.569503 }, { name: "منطقة سمحان", lat: 24.740913, lng: 46.571891 }, { name: "دوار البجيري", lat: 24.737521, lng: 46.574069 }, { name: "إشارة البجيري", lat: 24.737662, lng: 46.575429 }];
         LOCS.forEach(loc => this.addItem({ id: "d" + Date.now() + Math.random(), name: loc.name, lat: loc.lat, lng: loc.lng, radius: 22, color: "#ff0000", fillOpacity: 0.3, recipients: [] }));
     }
 
@@ -254,7 +281,7 @@ class LocationManager {
 
     openCard(item, hoverOnly = false) {
         const html = this.buildCardHTML(item, hoverOnly);
-        if (!this.infoWin) this.infoWin = new google.maps.InfoWindow({ maxWidth: 400, pixelOffset: new google.maps.Size(0, -28) });
+        if (!this.infoWin) this.infoWin = new google.maps.InfoWindow({ maxWidth: 380, pixelOffset: new google.maps.Size(0, -28) });
         this.infoWin.setContent(html);
         this.infoWin.setPosition(item.marker.position);
         this.infoWin.open({ map: this.map, anchor: item.marker });
@@ -266,57 +293,11 @@ class LocationManager {
         const name = Utils.escapeHTML(item.name);
         const recipientsHtml = item.recipients.map(r => Utils.escapeHTML(r)).join('<br>');
         const isEditable = !hover && MAP.editMode;
-
-        // === تعديل التصميم ليكون متجاوبًا ===
-        const cardStyle = `
-            background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(20px) saturate(1.8);
-            -webkit-backdrop-filter: blur(20px) saturate(1.8);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            padding: 0;
-            color: #333;
-            direction: rtl;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-            max-width: 95vw; /* عرض متجاوب */
-            width: auto;    /* عرض مرن */
-            box-sizing: border-box; /* لضمان احتساب الحجم بشكل صحيح */
-            overflow: hidden;
-        `;
-        // ==================================
-
+        const cardStyle = `background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 0; color: #333; direction: rtl; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2); max-width: 95vw; width: auto; box-sizing: border-box; overflow: hidden;`;
         const headerStyle = `display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255, 255, 255, 0.5); border-bottom: 1px solid rgba(255, 255, 255, 0.4);`;
         const bodyStyle = `padding: 20px;`;
         const footerStyle = `padding: 12px 20px; background: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255, 255, 255, 0.4);`;
-
-        return `
-        <div style="${cardStyle}">
-            <div style="${headerStyle}">
-                <h3 style="margin:0; font-size: 18px; font-weight: 700;">${name}</h3>
-                <img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;">
-            </div>
-            <div style="${bodyStyle}">
-                <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">المستلمون:</p>
-                ${isEditable ? `<textarea id="loc-rec" rows="3" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; resize: none; box-sizing: border-box;">${item.recipients.join("\n")}</textarea>` : `<div style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 8px; min-height: 40px; font-size: 14px; line-height: 1.6;">${recipientsHtml || '<span style="color: #888;">لا يوجد مستلمين</span>'}</div>`}
-            </div>
-            ${isEditable ? `
-                <div style="${footerStyle}">
-                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;">
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="loc-color" type="color" value="${item.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div>
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">الحجم:</label><input id="loc-radius" type="number" value="${item.radius}" min="5" max="5000" step="5" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div>
-                    </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة: <span id="loc-opacity-val">${Math.round(item.fillOpacity * 100)}%</span></label>
-                        <input id="loc-opacity" type="range" min="0" max="100" value="${Math.round(item.fillOpacity * 100)}" style="width:100%;">
-                    </div>
-                    <div style="display:flex;gap:8px; flex-wrap: wrap;">
-                        <button id="loc-save" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ</button>
-                        <button id="loc-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button>
-                        <button id="loc-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button>
-                    </div>
-                </div>
-            ` : ''}
-        </div>`;
+        return `<div style="${cardStyle}"><div style="${headerStyle}"><h3 style="margin:0; font-size: 18px; font-weight: 700;">${name}</h3><img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;"></div><div style="${bodyStyle}"><p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">المستلمون:</p>${isEditable ? `<textarea id="loc-rec" rows="3" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; resize: none; box-sizing: border-box;">${item.recipients.join("\n")}</textarea>` : `<div style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 8px; min-height: 40px; font-size: 14px; line-height: 1.6;">${recipientsHtml || '<span style="color: #888;">لا يوجد مستلمين</span>'}</div>`}</div>${isEditable ? `<div style="${footerStyle}"><div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;"><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="loc-color" type="color" value="${item.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">الحجم:</label><input id="loc-radius" type="number" value="${item.radius}" min="5" max="5000" step="5" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div></div><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة: <span id="loc-opacity-val">${Math.round(item.fillOpacity * 100)}%</span></label><input id="loc-opacity" type="range" min="0" max="100" value="${Math.round(item.fillOpacity * 100)}" style="width:100%;"></div><div style="display:flex;gap:8px; flex-wrap: wrap;"><button id="loc-save" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ</button><button id="loc-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button><button id="loc-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button></div></div>` : ''}</div>`;
     }
 
     attachCardEvents(item, hoverOnly) {
@@ -327,11 +308,7 @@ class LocationManager {
         const recEl = document.getElementById("loc-rec"); const colEl = document.getElementById("loc-color"); const radEl = document.getElementById("loc-radius");
         const opEl = document.getElementById("loc-opacity"); const opValEl = document.getElementById("loc-opacity-val");
         if(opEl) { opEl.addEventListener("input", () => { if(opValEl) opValEl.textContent = opEl.value + "%"; }); }
-        if (saveBtn) saveBtn.addEventListener("click", () => {
-            item.recipients = recEl.value.split("\n").map(s => s.trim()).filter(Boolean); item.color = colEl.value; item.radius = Utils.clamp(+radEl.value, 5, 5000); item.fillOpacity = Utils.clamp(+opEl.value, 0, 100) / 100;
-            item.circle.setOptions({ fillColor: item.color, strokeColor: item.color, radius: item.radius, fillOpacity: item.fillOpacity });
-            bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ التعديلات");
-        });
+        if (saveBtn) saveBtn.addEventListener("click", () => { item.recipients = recEl.value.split("\n").map(s => s.trim()).filter(Boolean); item.color = colEl.value; item.radius = Utils.clamp(+radEl.value, 5, 5000); item.fillOpacity = Utils.clamp(+opEl.value, 0, 100) / 100; item.circle.setOptions({ fillColor: item.color, strokeColor: item.color, radius: item.radius, fillOpacity: item.fillOpacity }); bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ التعديلات"); });
         if (delBtn) delBtn.addEventListener("click", () => { if (!confirm(`حذف "${item.name}"؟`)) return; item.marker.map = null; item.circle.setMap(null); this.items = this.items.filter(x => x.id !== item.id); this.infoWin.close(); this.cardPinned = false; bus.emit("persist"); bus.emit("toast", "تم حذف الموقع"); });
     }
 
@@ -464,180 +441,69 @@ const ROUTES = new RouteManager();
 /* ============================================================
    PolygonManager — إدارة المضلعات + بطاقات Glass
 ============================================================ */
+/* ============================================================
+   PolygonManager — إدارة المضلعات + بطاقات Glass (مُصلح)
+============================================================ */
 class PolygonManager {
 
     constructor() {
-        this.polygons = [];
-        this.map = null;
-        this.shareMode = false;
-        this.editMode = true;
-        this.infoWin = null;
-        this.cardPinned = false;
-        this.activePolygonIndex = -1;
-
-        bus.on("map:ready", map => {
-            this.map = map;
-            this.shareMode = MAP.shareMode;
-            this.editMode = MAP.editMode;
-            this.onMapReady();
-        });
-
+        this.polygons = []; this.map = null; this.shareMode = false; this.editMode = true;
+        this.infoWin = null; this.cardPinned = false; this.activePolygonIndex = -1;
+        bus.on("map:ready", map => { this.map = map; this.shareMode = MAP.shareMode; this.editMode = MAP.editMode; this.onMapReady(); });
         bus.on("state:load", st => this.applyState(st));
         bus.on("state:save", () => this.exportState());
     }
 
     onMapReady() {
         this.map.addListener("click", e => {
-            if (!MAP.modePolygonAdd) return;
-            if (this.shareMode) return;
-
-            if (this.activePolygonIndex === -1) {
-                this.createNewPolygon();
-            }
+            if (!MAP.modePolygonAdd || this.shareMode) return;
+            if (this.activePolygonIndex === -1) this.createNewPolygon();
             this.addPointToPolygon(this.activePolygonIndex, e.latLng);
         });
-
-        this.map.addListener("click", () => {
-            if (!this.cardPinned && this.infoWin) {
-                this.infoWin.close();
-            }
-            this.cardPinned = false;
-        });
+        this.map.addListener("click", () => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); this.cardPinned = false; });
     }
 
-    startPolygonSequence() {
-        this.activePolygonIndex = -1;
-        UI.showPolygonAddingUI();
-    }
-
+    // الدوال التي كانت مفقودة
+    startPolygonSequence() { this.activePolygonIndex = -1; UI.showDrawFinishUI(); }
     finishCurrentPolygon() {
         if (this.activePolygonIndex === -1) return;
-        
         const poly = this.polygons[this.activePolygonIndex];
-
-        // إزالة الخط المؤقت والعلامات المؤقتة
         if (poly.activePolyline) poly.activePolyline.setMap(null);
         poly.markers.forEach(m => m.map = null);
-
-        // إنشاء المضلع النهائي إذا كان به 3 نقاط على الأقل
         if (poly.points.length >= 3) {
-            poly.polygon = new google.maps.Polygon({
-                paths: poly.points,
-                map: this.map,
-                strokeColor: poly.color,
-                strokeOpacity: poly.strokeOpacity,
-                strokeWeight: poly.strokeWeight,
-                fillColor: poly.color,
-                fillOpacity: poly.fillOpacity,
-                zIndex: 5 // أقل من المسارات وأكثر من الخريطة
-            });
-
-            poly.polygon.addListener("mouseover", () => { if (!this.cardPinned) this.openCard(this.activePolygonIndex, true); });
+            poly.polygon = new google.maps.Polygon({ paths: poly.points, map: this.map, strokeColor: poly.color, strokeOpacity: poly.strokeOpacity, strokeWeight: poly.strokeWeight, fillColor: poly.color, fillOpacity: poly.fillOpacity, zIndex: 5 });
+            poly.polygon.addListener("mouseover", () => { if (!this.cardPinned) this.openCard(this.polygons.indexOf(poly), true); });
             poly.polygon.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); });
-            poly.polygon.addListener("click", () => this.openCard(this.activePolygonIndex, false));
-            
+            poly.polygon.addListener("click", () => this.openCard(this.polygons.indexOf(poly), false));
             bus.emit("persist");
-        } else {
-            // إذا كان أقل من 3 نقاط، احذف المضلع غير المكتمل
-            this.polygons.pop();
-        }
-
-        this.activePolygonIndex = -1;
-        UI.showDefaultUI();
+        } else { this.polygons.pop(); }
+        this.activePolygonIndex = -1; UI.showDefaultUI();
     }
 
     createNewPolygon() {
-        const polygon = {
-            id: "poly" + Date.now(),
-            name: "مضلع جديد",
-            points: [],
-            color: "#ff9800", // برتقالي افتراضي
-            strokeWeight: 2,
-            strokeOpacity: 0.8,
-            fillOpacity: 0.35,
-            polygon: null,
-            markers: [],
-            activePolyline: null
-        };
-        this.polygons.push(polygon);
-        this.activePolygonIndex = this.polygons.length - 1;
-        return polygon;
+        const polygon = { id: "poly" + Date.now(), name: "مضلع جديد", points: [], color: "#ff9800", strokeWeight: 2, strokeOpacity: 0.8, fillOpacity: 0.35, polygon: null, markers: [], activePolyline: null };
+        this.polygons.push(polygon); this.activePolygonIndex = this.polygons.length - 1; return polygon;
     }
 
     addPointToPolygon(polyIndex, latLng) {
-        const poly = this.polygons[polyIndex];
-        poly.points.push(latLng);
-
-        // إضافة علامة مؤقتة للنقطة
-        const marker = new google.maps.marker.AdvancedMarkerElement({
-            position: latLng,
-            map: this.map,
-            content: this.buildVertexMarkerContent(poly.color)
-        });
+        const poly = this.polygons[polyIndex]; poly.points.push(latLng);
+        const marker = new google.maps.marker.AdvancedMarkerElement({ position: latLng, map: this.map, content: this.buildVertexMarkerContent(poly.color) });
         poly.markers.push(marker);
-
-        // تحديث الخط المؤقت
         if (poly.activePolyline) poly.activePolyline.setMap(null);
-        poly.activePolyline = new google.maps.Polyline({
-            path: poly.points,
-            map: this.map,
-            strokeColor: poly.color,
-            strokeOpacity: 0.6,
-            strokeWeight: 2,
-            zIndex: 10
-        });
+        poly.activePolyline = new google.maps.Polyline({ path: poly.points, map: this.map, strokeColor: poly.color, strokeOpacity: 0.6, strokeWeight: 2, zIndex: 10 });
     }
 
     buildVertexMarkerContent(color) {
-        const el = document.createElement("div");
-        el.style.width = "12px";
-        el.style.height = "12px";
-        el.style.borderRadius = "50%";
-        el.style.background = "white";
-        el.style.border = `2px solid ${color}`;
-        return el;
+        const el = document.createElement("div"); el.style.width = "12px"; el.style.height = "12px"; el.style.borderRadius = "50%"; el.style.background = "white"; el.style.border = `2px solid ${color}`; return el;
     }
 
     openCard(polyIndex, hoverOnly = false) {
-        const poly = this.polygons[polyIndex];
-        const isEditable = !hoverOnly && MAP.editMode;
-
+        const poly = this.polygons[polyIndex]; const isEditable = !hoverOnly && MAP.editMode;
         const cardStyle = `background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.5); padding: 0; color: #333; direction: rtl; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2); max-width: 95vw; width: auto; box-sizing: border-box; overflow: hidden;`;
         const headerStyle = `display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255, 255, 255, 0.5); border-bottom: 1px solid rgba(255, 255, 255, 0.4);`;
         const bodyStyle = `padding: 20px;`;
         const footerStyle = `padding: 12px 20px; background: rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255, 255, 255, 0.4);`;
-
-        const html = `
-        <div style="${cardStyle}">
-            <div style="${headerStyle}">
-                <h3 style="margin:0; font-size: 18px; font-weight: 700;">${Utils.escapeHTML(poly.name)}</h3>
-                <img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;">
-            </div>
-            ${isEditable ? `
-                <div style="${bodyStyle}">
-                    <div style="margin-bottom:14px;">
-                        <label style="font-size:12px; display:block; margin-bottom:4px;">الاسم:</label>
-                        <input id="poly-name" type="text" value="${Utils.escapeHTML(poly.name)}" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;">
-                    </div>
-                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;">
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="poly-color" type="color" value="${poly.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div>
-                        <div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">سماكة الخط:</label><input id="poly-stroke" type="number" value="${poly.strokeWeight}" min="1" max="10" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div>
-                    </div>
-                    <div style="margin-bottom:14px;">
-                        <label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة: <span id="poly-fill-opacity-val">${Math.round(poly.fillOpacity * 100)}%</span></label>
-                        <input id="poly-fill-opacity" type="range" min="0" max="100" value="${Math.round(poly.fillOpacity * 100)}" style="width:100%;">
-                    </div>
-                </div>
-                <div style="${footerStyle}">
-                    <div style="display:flex;gap:8px; flex-wrap: wrap;">
-                        <button id="poly-save" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ</button>
-                        <button id="poly-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button>
-                        <button id="poly-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button>
-                    </div>
-                </div>
-            ` : ''}
-        </div>`;
-
+        const html = `<div style="${cardStyle}"><div style="${headerStyle}"><h3 style="margin:0; font-size: 18px; font-weight: 700;">${Utils.escapeHTML(poly.name)}</h3><img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;"></div>${isEditable ? `<div style="${bodyStyle}"><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">الاسم:</label><input id="poly-name" type="text" value="${Utils.escapeHTML(poly.name)}" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div><div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap: wrap;"><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">اللون:</label><input id="poly-color" type="color" value="${poly.color}" style="width:100%;height:32px;border:none;border-radius:6px;cursor:pointer;"></div><div style="flex:1; min-width: 120px;"><label style="font-size:12px; display:block; margin-bottom:4px;">سماكة الخط:</label><input id="poly-stroke" type="number" value="${poly.strokeWeight}" min="1" max="10" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;"></div></div><div style="margin-bottom:14px;"><label style="font-size:12px; display:block; margin-bottom:4px;">شفافية التعبئة: <span id="poly-fill-opacity-val">${Math.round(poly.fillOpacity * 100)}%</span></label><input id="poly-fill-opacity" type="range" min="0" max="100" value="${Math.round(poly.fillOpacity * 100)}" style="width:100%;"></div></div><div style="${footerStyle}"><div style="display:flex;gap:8px; flex-wrap: wrap;"><button id="poly-save" style="flex:2;background:#4285f4;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 100px;">حفظ</button><button id="poly-delete" style="flex:1;background:#e94235;color:white;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">حذف</button><button id="poly-close" style="flex:1;background:rgba(0,0,0,0.1);color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-weight:600; min-width: 80px;">إغلاق</button></div></div>` : ''}</div>`;
         if (!this.infoWin) this.infoWin = new google.maps.InfoWindow({ maxWidth: 400 });
         this.infoWin.setContent(html);
         this.infoWin.setPosition(this.getPolygonCenter(poly));
@@ -646,58 +512,23 @@ class PolygonManager {
         google.maps.event.addListenerOnce(this.infoWin, "domready", () => this.attachCardEvents(polyIndex, hoverOnly));
     }
     
-    getPolygonCenter(poly) {
-        const bounds = new google.maps.LatLngBounds();
-        poly.points.forEach(pt => bounds.extend(pt));
-        return bounds.getCenter();
-    }
-
+    getPolygonCenter(poly) { const bounds = new google.maps.LatLngBounds(); poly.points.forEach(pt => bounds.extend(pt)); return bounds.getCenter(); }
     attachCardEvents(polyIndex, hoverOnly) {
         if (hoverOnly) return;
         const poly = this.polygons[polyIndex];
         const saveBtn = document.getElementById("poly-save"); const delBtn = document.getElementById("poly-delete"); const closeBtn = document.getElementById("poly-close");
         const nameEl = document.getElementById("poly-name"); const colEl = document.getElementById("poly-color"); const strokeEl = document.getElementById("poly-stroke");
         const fillOpEl = document.getElementById("poly-fill-opacity"); const fillOpValEl = document.getElementById("poly-fill-opacity-val");
-
         if(fillOpEl) { fillOpEl.addEventListener("input", () => { if(fillOpValEl) fillOpValEl.textContent = fillOpEl.value + "%"; }); }
-        if (saveBtn) saveBtn.addEventListener("click", () => {
-            poly.name = nameEl.value.trim(); poly.color = colEl.value; poly.strokeWeight = Utils.clamp(+strokeEl.value, 1, 10); poly.fillOpacity = Utils.clamp(+fillOpEl.value, 0, 100) / 100;
-            poly.polygon.setOptions({ fillColor: poly.color, strokeColor: poly.color, strokeWeight: poly.strokeWeight, fillOpacity: poly.fillOpacity });
-            bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ تعديلات المضلع");
-        });
+        if (saveBtn) saveBtn.addEventListener("click", () => { poly.name = nameEl.value.trim(); poly.color = colEl.value; poly.strokeWeight = Utils.clamp(+strokeEl.value, 1, 10); poly.fillOpacity = Utils.clamp(+fillOpEl.value, 0, 100) / 100; poly.polygon.setOptions({ fillColor: poly.color, strokeColor: poly.color, strokeWeight: poly.strokeWeight, fillOpacity: poly.fillOpacity }); bus.emit("persist"); this.infoWin.close(); this.cardPinned = false; bus.emit("toast", "تم حفظ تعديلات المضلع"); });
         if (delBtn) delBtn.addEventListener("click", () => { if (!confirm(`حذف "${poly.name}"؟`)) return; poly.polygon.setMap(null); this.polygons = this.polygons.filter(p => p.id !== poly.id); this.infoWin.close(); this.cardPinned = false; bus.emit("persist"); bus.emit("toast", "تم حذف المضلع"); });
         if (closeBtn) closeBtn.addEventListener("click", () => { this.infoWin.close(); this.cardPinned = false; });
     }
 
-    exportState() {
-        return this.polygons.filter(p => p.polygon) // فقط صدّر المضلعات المكتملة
-            .map(poly => ({
-                id: poly.id, name: poly.name, color: poly.color, strokeWeight: poly.strokeWeight, strokeOpacity: poly.strokeOpacity, fillOpacity: poly.fillOpacity,
-                points: poly.points.map(p => ({ lat: typeof p.lat === 'function' ? p.lat() : p.lat, lng: typeof p.lng === 'function' ? p.lng() : p.lng }))
-            }));
-    }
-
-    applyState(state) {
-        if (!state || !state.polygons) return;
-        this.polygons.forEach(p => { if (p.polygon) p.polygon.setMap(null); });
-        this.polygons = [];
-        state.polygons.forEach(polyData => {
-            const newPoly = {
-                id: polyData.id, name: polyData.name, color: polyData.color, strokeWeight: polyData.strokeWeight, strokeOpacity: polyData.strokeOpacity, fillOpacity: polyData.fillOpacity,
-                points: polyData.points.map(p => new google.maps.LatLng(p.lat, p.lng)),
-                polygon: null, markers: [], activePolyline: null
-            };
-            newPoly.polygon = new google.maps.Polygon({ paths: newPoly.points, map: this.map, strokeColor: newPoly.color, strokeOpacity: newPoly.strokeOpacity, strokeWeight: newPoly.strokeWeight, fillColor: newPoly.color, fillOpacity: newPoly.fillOpacity, zIndex: 5 });
-            newPoly.polygon.addListener("mouseover", () => { if (!this.cardPinned) this.openCard(this.polygons.length, true); });
-            newPoly.polygon.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); });
-            newPoly.polygon.addListener("click", () => this.openCard(this.polygons.length, false));
-            this.polygons.push(newPoly);
-        });
-    }
+    exportState() { return this.polygons.filter(p => p.polygon).map(poly => ({ id: poly.id, name: poly.name, color: poly.color, strokeWeight: poly.strokeWeight, strokeOpacity: poly.strokeOpacity, fillOpacity: poly.fillOpacity, points: poly.points.map(p => ({ lat: typeof p.lat === 'function' ? p.lat() : p.lat, lng: typeof p.lng === 'function' ? p.lng() : p.lng })) })); }
+    applyState(state) { if (!state || !state.polygons) return; this.polygons.forEach(p => { if (p.polygon) p.polygon.setMap(null); }); this.polygons = []; state.polygons.forEach(polyData => { const newPoly = { id: polyData.id, name: polyData.name, color: polyData.color, strokeWeight: polyData.strokeWeight, strokeOpacity: polyData.strokeOpacity, fillOpacity: polyData.fillOpacity, points: polyData.points.map(p => new google.maps.LatLng(p.lat, p.lng)), polygon: null, markers: [], activePolyline: null }; newPoly.polygon = new google.maps.Polygon({ paths: newPoly.points, map: this.map, strokeColor: newPoly.color, strokeOpacity: newPoly.strokeOpacity, strokeWeight: newPoly.strokeWeight, fillColor: newPoly.color, fillOpacity: newPoly.fillOpacity, zIndex: 5 }); newPoly.polygon.addListener("mouseover", () => { if (!this.cardPinned) this.openCard(this.polygons.length, true); }); newPoly.polygon.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); }); newPoly.polygon.addListener("click", () => this.openCard(this.polygons.length, false)); this.polygons.push(newPoly); }); }
 }
-
 const POLYGONS = new PolygonManager();
-
 
 /* ============================================================
    StateManager — النظام الرئيس لحفظ واسترجاع state
@@ -933,8 +764,10 @@ const SHARE = new ShareManager();
 /* ============================================================
    UIManager — واجهة المستخدم (محدث لدعم المضلعات)
 ============================================================ */
+/* ============================================================
+   UIManager — واجهة المستخدم (مُصلح بالكامل)
+============================================================ */
 class UIManager {
-
     constructor() {
         this.logo = "/img/logo.png";
         this.btnRoadmap = document.getElementById("btn-roadmap");
@@ -942,118 +775,97 @@ class UIManager {
         this.btnTraffic = document.getElementById("btn-traffic");
         this.btnAdd = document.getElementById("btn-add");
         this.btnRoute = document.getElementById("btn-route");
-        this.btnPolygon = document.getElementById("btn-polygon"); // <-- إضافة
-        this.btnRouteFinish = document.getElementById("btn-route-finish");
+        this.btnPolygon = document.getElementById("btn-polygon");
+        this.btnDrawFinish = document.getElementById("btn-draw-finish"); // الزر العام الجديد
         this.btnRouteClear = document.getElementById("btn-route-clear");
         this.btnEdit = document.getElementById("btn-edit");
         this.modeBadge = document.getElementById("mode-badge");
         this.toastElement = document.getElementById("toast");
         this.toastTimer = null;
-
         bus.on("map:ready", () => this.initializeUI());
         bus.on("toast", msg => this.showToast(msg));
     }
 
     initializeUI() {
         if (MAP.shareMode) this.applyShareMode();
-
         if (this.btnRoadmap) { /* ... */ }
         if (this.btnSatellite) { /* ... */ }
         if (this.btnTraffic) { /* ... */ }
         if (this.btnEdit && !MAP.shareMode) { /* ... */ }
-        
-        // --- تعديل منطق الأزرار ليشمل المضلع ---
+
+        // --- منطق الأزرار المُصلح ---
         if (this.btnAdd && !MAP.shareMode) {
             this.btnAdd.addEventListener("click", () => {
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
                 this.setActiveMode('add');
             });
         }
-
         if (this.btnRoute && !MAP.shareMode) {
             this.btnRoute.addEventListener("click", () => {
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
                 this.setActiveMode('route');
             });
         }
-
-        if (this.btnPolygon && !MAP.shareMode) { // <-- إضافة حدث زر المضلع
+        if (this.btnPolygon && !MAP.shareMode) {
             this.btnPolygon.addEventListener("click", () => {
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
                 this.setActiveMode('polygon');
             });
         }
-
-        if (this.btnRouteFinish && !MAP.shareMode) { /* ... */ }
+        if (this.btnDrawFinish && !MAP.shareMode) {
+            this.btnDrawFinish.addEventListener("click", () => {
+                if (MAP.modeRouteAdd) ROUTES.finishCurrentRoute();
+                if (MAP.modePolygonAdd) POLYGONS.finishCurrentPolygon();
+            });
+        }
         if (this.btnRouteClear && !MAP.shareMode) { /* ... */ }
-
         this.updateModeBadge();
     }
-    
-    // --- دالة جديدة لتنظيم أوضاع الرسم ---
-    setActiveMode(mode) {
-        // إيقاف جميع الأوضاع أولاً
-        MAP.modeAdd = false;
-        MAP.modeRouteAdd = false;
-        MAP.modePolygonAdd = false; // <-- إضافة وضع المضلع
 
-        // إعادة تعيين حالة الأزرار
+    setActiveMode(mode) {
+        MAP.modeAdd = false; MAP.modeRouteAdd = false; MAP.modePolygonAdd = false;
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.setAttribute("aria-pressed", "false");
-        if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "false"); // <-- إعادة تعيين زر المضلع
+        if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "false");
+        MAP.setCursor("grab");
 
-        // تفعيل الوضع المطلوب
         switch (mode) {
             case 'add':
-                MAP.modeAdd = true;
-                if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "true");
-                MAP.setCursor("crosshair");
-                this.showDefaultUI();
-                this.showToast("اضغط على الخريطة لإضافة موقع");
-                break;
+                MAP.modeAdd = true; if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "true"); MAP.setCursor("crosshair"); this.showDefaultUI(); this.showToast("اضغط على الخريطة لإضافة موقع"); break;
             case 'route':
-                ROUTES.startNewRouteSequence();
-                this.showRouteAddingUI();
-                this.showToast("اضغط لإضافة نقاط المسار الأول");
-                break;
-            case 'polygon': // <-- إضافة حالة المضلع
-                POLYGONS.startPolygonSequence();
-                this.showPolygonAddingUI();
-                this.showToast("اضغط لإضافة رؤوس المضلع، ثم 'إنهاء الرسم'");
-                break;
+                ROUTES.startNewRouteSequence(); this.showDrawFinishUI(); this.showToast("اضغط لإضافة نقاط المسار الأول"); break;
+            case 'polygon':
+                POLYGONS.startPolygonSequence(); this.showDrawFinishUI(); this.showToast("اضغط لإضافة رؤوس المضلع، ثم 'إنهاء الرسم'"); break;
         }
     }
 
     applyShareMode() {
         if (this.btnAdd) this.btnAdd.style.display = "none";
         if (this.btnRoute) this.btnRoute.style.display = "none";
-        if (this.btnPolygon) this.btnPolygon.style.display = "none"; // <-- إخفاء زر المضلع
-        if (this.btnRouteFinish) this.btnRouteFinish.style.display = "none";
+        if (this.btnPolygon) this.btnPolygon.style.display = "none";
+        if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
         if (this.btnRouteClear) this.btnRouteClear.style.display = "none";
         if (this.btnEdit) this.btnEdit.style.display = "none";
         this.updateModeBadge("view");
     }
 
-    // --- دالة جديدة لواجهة رسم المضلع ---
-    showPolygonAddingUI() {
+    showDrawFinishUI() {
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
-        if (this.btnRoute) this.btnRoute.setAttribute("aria-pressed", "false");
-        if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "true");
-        
-        MAP.modeAdd = false;
-        MAP.modeRouteAdd = false;
-        MAP.modePolygonAdd = true;
-        MAP.setCursor("crosshair");
+        if (this.btnRoute) this.btnRoute.style.display = "none";
+        if (this.btnPolygon) this.btnPolygon.style.display = "none";
+        if (this.btnDrawFinish) this.btnDrawFinish.style.display = "inline-block";
     }
-    
-    showRouteAddingUI() { /* ... */ }
-    showDefaultUI() { /* ... */ }
-    updateModeBadge(forceMode=null) { /* ... */ }
+
+    showDefaultUI() {
+        if (this.btnRoute) this.btnRoute.style.display = "inline-block";
+        if (this.btnPolygon) this.btnPolygon.style.display = "inline-block";
+        if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
+    }
+
+    updateModeBadge(forceMode = null) { /* ... */ }
     showToast(message) { /* ... */ }
 }
-
 const UI = new UIManager();
-
 
 /* ============================================================
    BootLoader — التشغيل النهائي
