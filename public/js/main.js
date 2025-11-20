@@ -257,7 +257,7 @@ class LocationManager {
     }
 
     loadDefaultLocations() {
-        const LOCS = [{ name: "بوابة سمحان", lat: 24.742132, lng: 46.569503 }, { name: "منطقة سمحان", lat: 24.740913, lng: 46.571891 }, { name: "دوار البجيري", lat: 24.737521, lng: 46.574069 }, { name: "إشارة البجيري", lat: 24.737662, lng: 46.575429 }];
+        const LOCS = [{ name: "بوابة سمحان", lat: 24.742132, lng: 46.569503 }, { name: "منطقة سمحان", lat: 24.740913, lng: 46.571891 }, { name: "دوار البجيري", lat: 24.737521, lng: 46.574069 }, { name: "مسار المشاة عذيبة", lat: 24.73615951318394, lng: 46.576994024788895 }, { name: "إشارة البجيري", lat: 24.737662, lng: 46.575429 }];
         LOCS.forEach(loc => this.addItem({ id: "d" + Date.now() + Math.random(), name: loc.name, lat: loc.lat, lng: loc.lng, radius: 22, color: "#ff0000", fillOpacity: 0.3, recipients: [] }));
     }
 
