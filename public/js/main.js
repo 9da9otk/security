@@ -1064,7 +1064,8 @@ const ROUTES = new RouteManager();
    StateManager — إدارة حفظ واسترجاع الحالة
 ============================================================ */
 /* ============================================================
-   StateManager — إدارة حفظ واسترجاع الحالة (محدث)
+/* ============================================================
+   StateManager — إدارة حفظ واسترجاع الحالة (مُصلح)
 ============================================================ */
 class StateManager {
 
@@ -1075,17 +1076,23 @@ class StateManager {
 
         bus.on("map:ready", map => {
             this.map = map;
+            // نحصل على قيمة الوضع من MapController بعد أن يحددها
             this.shareMode = MAP.shareMode;
 
-            // قراءة حالة المشاركة مرة واحدة فقط
-            const st = this.readShare();
-            if (st) {
-                // *** هنا يتم استدعاء الدالة الجديدة ***
-                this.applyState(st);
+            // 1. دائماً حاول قراءة الحالة من الرابط، بغض النظر عن الوضع
+            const stateFromUrl = this.readShare();
+
+            // 2. إذا تم العثور على حالة في الرابط، قم بتطبيقها
+            if (stateFromUrl) {
+                console.log("State found in URL, applying...");
+                this.applyState(stateFromUrl);
+            } else {
+                console.log("No state found in URL.");
             }
 
-            // في الوضع العادي فقط نفعّل الحفظ التلقائي
+            // 3. فقط إذا لم نكن في وضع المشاركة، قم بتفعيل الحفظ التلقائي
             if (!this.shareMode) {
+                console.log("Enabling auto-persist for edit mode.");
                 bus.on("persist", () => this.schedulePersist());
             }
         });
@@ -1117,14 +1124,14 @@ class StateManager {
             const base = location.origin + location.pathname;
             const url = base + "?x=" + encoded;
             history.replaceState(null, "", url);
-            return url;              // مهم: نرجع الرابط للتحكم فيه من ShareManager
+            return url;
         } catch (e) {
             console.error("writeShare error", e);
-            return location.href;    // fallback
+            return location.href;
         }
     }
 
-    // حفظ تلقائي (يستخدم writeShare لكن لا يهمنا هنا رابط النسخ)
+    // حفظ تلقائي
     schedulePersist() {
         if (this.shareMode) return;
 
@@ -1152,11 +1159,9 @@ class StateManager {
         }
     }
 
-    // =======================================================
-    // == ضع الكود الجديد هنا == (الدالة الجديدة)
-    // =======================================================
+    // تطبيق الحالة المستعادة على الخريطة
     applyState(state) {
-        console.log("Applying state:", state); // للتتبع
+        console.log("Applying state:", state);
 
         if (!state) return;
 
@@ -1170,7 +1175,6 @@ class StateManager {
             if (mapState.t) {
                 this.map.setMapTypeId(mapState.t);
             }
-            // تطبيق حالة حركة المرور
             if (mapState.traffic) {
                 MAP.trafficLayer.setMap(this.map);
             } else {
