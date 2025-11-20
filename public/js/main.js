@@ -120,41 +120,6 @@ const Utils = {
 };
 
 
-/* ============================================================
-   Mobile URL Recovery Logic — استعادة الروابط على الجوال
-============================================================ */
-
-class MobileURLFixer {
-
-    static async tryFixURL() {
-
-        const url = window.location.href;
-        const hasX = url.includes("?x=");
-
-        if (hasX) return; // الرابط صحيح
-
-        // iOS أحياناً يحذف الـ ?x عند فتح الرابط من واتساب
-        // نحاول جلب النسخة الكاملة من الـ clipboard خلال أول ثانية
-
-        try {
-            const clip = await navigator.clipboard.readText();
-
-            if (clip.includes("?x=")) {
-                // إعادة تحميل بالرابط الصحيح
-                window.location.replace(clip.trim());
-            }
-
-        } catch (e) {
-            // الأجهزة التي تمنع قراءة clipboard
-            console.log("No clipboard access", e);
-        }
-    }
-}
-
-// نجرب الإصلاح قبل تحميل الخريطة
-MobileURLFixer.tryFixURL();
-
-
 
 /* ============================================================
    MapController — وحدة إدارة الخريطة
@@ -632,7 +597,7 @@ const STATE = new StateManager();
    ShareManager — محاولة اختصار + fallback تلقائي
 ============================================================ */
 /* ============================================================
-   ShareManager — نسخ آمن مع حل يدوي للجوال
+   ShareManager — نسخ آمن مع تحقق من طول الرابط
 ============================================================ */
 class ShareManager {
 
@@ -644,35 +609,47 @@ class ShareManager {
     }
 
     async generateShareLink() {
-        const st = STATE.buildState();
-        if (!st) {
-            bus.emit("toast", "تعذر إنشاء رابط المشاركة");
-            return;
-        }
-
-        const longUrl = STATE.writeShare(st);
         const label = this.btn.querySelector(".label");
         const original = label ? label.textContent : null;
 
         this.btn.disabled = true;
-        if (label) label.textContent = "جاري النسخ…";
+        if (label) label.textContent = "جاري التحضير…";
+
+        // 1. بناء الحالة والرابط الطويل
+        const st = STATE.buildState();
+        if (!st) {
+            bus.emit("toast", "تعذر إنشاء رابط المشاركة");
+            this.resetButton(original);
+            return;
+        }
+        const longUrl = STATE.writeShare(st);
+
+        // 2. التحقق من طول الرابط (الحد الأقصى الآمن هو حوالي 8000 حرف)
+        if (longUrl.length > 8000) {
+            bus.emit("toast", "البيانات كبيرة جدًا للمشاركة. حذف بعض المواقع أو المسارات.");
+            this.resetButton(original);
+            return;
+        }
+
+        if (label) label.textContent = "جاري التقصير…";
 
         let finalUrl = longUrl;
 
+        // 3. محاولة التقصير
         try {
             const api = "https://is.gd/create.php?format=json&url=" +
                         encodeURIComponent(longUrl);
             const res = await fetch(api);
             const data = await res.json();
+
             if (data && data.shorturl) {
                 finalUrl = data.shorturl;
             }
         } catch (err) {
-            console.error("is.gd error", err);
-            finalUrl = longUrl;
+            console.error("is.gd error, using long URL.", err);
         }
 
-        // === محاولة النسخ الحديث، وإذا فشل نعرض النافذة اليدوية ===
+        // 4. محاولة النسخ
         try {
             await navigator.clipboard.writeText(finalUrl);
             bus.emit("toast", "تم نسخ رابط المشاركة");
@@ -680,94 +657,30 @@ class ShareManager {
             console.error("Clipboard copy failed, showing manual dialog.", err);
             this.showManualCopyDialog(finalUrl);
         }
-        // ==========================================================
 
+        this.resetButton(original);
+    }
+    
+    resetButton(originalText) {
         this.btn.disabled = false;
-        if (label) label.textContent = original || "مشاركة";
+        const label = this.btn.querySelector(".label");
+        if (label) label.textContent = originalText || "مشاركة";
     }
 
-    // دالة لعرض نافذة النسخ اليدوي
     showManualCopyDialog(url) {
-        // إنشاء طبقة خلفية شفافة
         const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            z-index: 10000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            box-sizing: border-box;
-        `;
-
-        // إنشاء صندوق المحتوى
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); z-index: 10000; display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;`;
         const dialog = document.createElement('div');
-        dialog.style.cssText = `
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 90%;
-            width: 400px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            text-align: center;
-            direction: rtl;
-        `;
-
-        dialog.innerHTML = `
-            <h3 style="margin-top: 0; margin-bottom: 16px; color: #333;">تعذر النسخ التلقائي</h3>
-            <p style="margin-bottom: 20px; color: #666; line-height: 1.5;">
-                الرجاء الضغط مطولاً على الرابط أدناه واختيار "نسخ" من القائمة.
-            </p>
-            <textarea readonly style="
-                width: 100%;
-                height: 80px;
-                padding: 10px;
-                border-radius: 8px;
-                border: 1px solid #ccc;
-                font-size: 14px;
-                text-align: center;
-                resize: none;
-                direction: ltr;
-                box-sizing: border-box;
-            ">${url}</textarea>
-            <button id="manual-copy-close" style="
-                margin-top: 20px;
-                width: 100%;
-                padding: 12px;
-                background-color: #4285f4;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: bold;
-                cursor: pointer;
-            ">إغلاق</button>
-        `;
-
+        dialog.style.cssText = `background: white; border-radius: 12px; padding: 24px; max-width: 90%; width: 400px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-align: center; direction: rtl;`;
+        dialog.innerHTML = `<h3 style="margin-top: 0; margin-bottom: 16px; color: #333;">انسخ الرابط يدويًا</h3><p style="margin-bottom: 20px; color: #666; line-height: 1.5;">الرجاء الضغط مطولاً على الرابط واختيار "نسخ".</p><textarea readonly style="width: 100%; height: 80px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; text-align: center; resize: none; direction: ltr; box-sizing: border-box;">${url}</textarea><button id="manual-copy-close" style="margin-top: 20px; width: 100%; padding: 12px; background-color: #4285f4; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;">إغلاق</button>`;
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-
-        // إضافة حدث للإغلاق
-        document.getElementById('manual-copy-close').addEventListener('click', () => {
-            document.body.removeChild(overlay);
-        });
-
-        // إغلاق عند الضغط على الخلفية
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                document.body.removeChild(overlay);
-            }
-        });
+        document.getElementById('manual-copy-close').addEventListener('click', () => { document.body.removeChild(overlay); });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) { document.body.removeChild(overlay); } });
     }
 }
 
 const SHARE = new ShareManager();
-
 
 /* ============================================================
    UIManager — واجهة المستخدم
