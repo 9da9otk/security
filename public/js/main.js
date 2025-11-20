@@ -333,26 +333,346 @@ const LOCATIONS = new LocationManager();
 /* ============================================================
    RouteManager — إدارة المسارات + بطاقات Glass (التصميم الجديد)
 ============================================================ */
+/* ============================================================
+   RouteManager — إدارة المسارات + بطاقات Glass (التصميم الجديد)
+============================================================ */
 class RouteManager {
-    constructor() { this.routes = []; this.map = null; this.shareMode = false; this.editMode = true; this.directionsService = null; this.infoWin = null; this.cardPinned = false; this.activeRouteIndex = -1; bus.on("map:ready", map => { this.map = map; this.shareMode = MAP.shareMode; this.editMode = MAP.editMode; this.onMapReady(); }); bus.on("state:load", st => this.applyState(st)); bus.on("state:save", () => this.exportState()); }
-    onMapReady() { this.map.addListener("click", e => { if (!MAP.modeRouteAdd || this.shareMode) return; if (this.activeRouteIndex === -1) this.createNewRoute(); this.addPointToRoute(this.activeRouteIndex, e.latLng); }); this.map.addListener("click", () => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); this.cardPinned = false; }); }
-    startNewRouteSequence() { this.activeRouteIndex = -1; UI.showDrawFinishUI(); }
-    finishCurrentRoute() { if (this.activeRouteIndex === -1) return; const rt = this.routes[this.activeRouteIndex]; if (rt.poly) rt.poly.setMap(null); rt.stops.forEach(s => s.map = null); if (rt.points.length >= 2) { rt.poly = new google.maps.Polyline({ map: this.map, path: rt.points, strokeColor: rt.color, strokeWeight: rt.weight, strokeOpacity: rt.opacity, zIndex: 10 }); rt.poly.addListener("mouseover", () => { if (!this.cardPinned) this.openRouteCard(this.activeRouteIndex, true); }); rt.poly.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); }); rt.poly.addListener("click", () => this.openRouteCard(this.activeRouteIndex, false)); bus.emit("persist"); } else { this.routes.pop(); } this.activeRouteIndex = -1; UI.showDefaultUI(); }
-    createNewRoute() { const route = { id: "rt" + Date.now(), points: [], color: "#3344ff", weight: 6, opacity: 0.95, distance: 0, duration: 0, overview: null, poly: null, stops: [], notes: "" }; this.routes.push(route); this.activeRouteIndex = this.routes.length - 1; return route; }
-    addPointToRoute(routeIndex, latLng) { const rt = this.routes[routeIndex]; rt.points.push(latLng); const stop = this.createStopMarker(latLng, routeIndex, rt.points.length - 1); rt.stops.push(stop); if (rt.points.length >= 2) this.requestRoute(routeIndex); else bus.emit("persist"); }
-    createStopMarker(pos, routeIndex, idx) { const rt = this.routes[routeIndex]; const el = document.createElement("div"); el.style.cssText = "width:22px;height:22px;background:white;border-radius:50%;border:2px solid "+rt.color+";display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;z-index:101;"; el.textContent = idx + 1; const marker = new google.maps.marker.AdvancedMarkerElement({ position: pos, map: this.map, content: el, gmpDraggable: !this.shareMode }); marker.addListener("dragend", () => { rt.points[idx] = marker.position; this.requestRoute(routeIndex); bus.emit("persist"); }); marker.addListener("contextmenu", () => { if (this.shareMode) return; this.removePoint(routeIndex, idx); }); return marker; }
-    removePoint(routeIndex, idx) { const rt = this.routes[routeIndex]; if (rt.stops[idx]) rt.stops[idx].map = null; rt.points.splice(idx, 1); rt.stops.splice(idx, 1); rt.stops.forEach((m, i) => { m.content.textContent = i + 1; }); if (rt.points.length >= 2) this.requestRoute(routeIndex); else this.clearRoute(routeIndex); bus.emit("persist"); }
-    removeRoute(routeIndex) { const rt = this.routes[routeIndex]; if (rt.poly) rt.poly.setMap(null); rt.stops.forEach(s => s.map = null); this.routes.splice(routeIndex, 1); this.activeRouteIndex = -1; if (this.infoWin) this.infoWin.close(); this.cardPinned = false; bus.emit("persist"); }
-    clearRoute(routeIndex) { const rt = this.routes[routeIndex]; if (rt.poly) rt.poly.setMap(null); rt.poly = null; rt.overview = null; rt.distance = 0; rt.duration = 0; }
-    requestRoute(routeIndex) { if (!this.directionsService) this.directionsService = new google.maps.DirectionsService(); const rt = this.routes[routeIndex]; const pts = rt.points; if (pts.length < 2) return; const req = { origin: pts[0], destination: pts[pts.length - 1], travelMode: google.maps.TravelMode.DRIVING }; if (pts.length > 2) req.waypoints = pts.slice(1, -1).map(p => ({ location: p, stopover: true })); this.directionsService.route(req, (res, status) => { if (status !== "OK") { bus.emit("toast", "تعذر حساب المسار"); return; } const r = res.routes[0]; rt.overview = r.overview_polyline; rt.distance = r.legs.reduce((s, l) => s + l.distance.value, 0); rt.duration = r.legs.reduce((s, l) => s + l.duration.value, 0); this.renderRoute(routeIndex); bus.emit("persist"); }); }
-    renderRoute(routeIndex) { const rt = this.routes[routeIndex]; if (rt.poly) rt.poly.setMap(null); let path = rt.overview ? google.maps.geometry.encoding.decodePath(rt.overview) : rt.points; rt.poly = new google.maps.Polyline({ map: this.map, path, strokeColor: rt.color, strokeWeight: rt.weight, strokeOpacity: rt.opacity, zIndex: 10 }); rt.poly.addListener("mouseover", () => { if (!this.cardPinned) this.openRouteCard(routeIndex, true); }); rt.poly.addListener("mouseout", () => { if (!this.cardPinned && this.infoWin) setTimeout(() => { if (!this.cardPinned && this.infoWin) this.infoWin.close(); }, 150); }); rt.poly.addListener("click", () => this.openRouteCard(routeIndex, false)); }
+
+    constructor() {
+        this.routes = [];
+        this.map = null;
+        this.shareMode = false;
+        this.editMode = true;
+        this.directionsService = null;
+        this.infoWin = null;
+        this.cardPinned = false;
+        this.activeRouteIndex = -1;
+
+        bus.on("map:ready", map => {
+            this.map = map;
+            this.shareMode = MAP.shareMode;
+            this.editMode = MAP.editMode;
+            this.onMapReady();
+        });
+
+        bus.on("state:load", st => this.applyState(st));
+        bus.on("state:save", () => this.exportState());
+    }
+
+    onMapReady() {
+        this.map.addListener("click", e => {
+            if (!MAP.modeRouteAdd || this.shareMode) return;
+
+            if (this.activeRouteIndex === -1) {
+                this.createNewRoute();
+            }
+            this.addPointToRoute(this.activeRouteIndex, e.latLng);
+        });
+
+        this.map.addListener("click", () => {
+            if (!this.cardPinned && this.infoWin) {
+                this.infoWin.close();
+            }
+            this.cardPinned = false;
+        });
+    }
+
+    startNewRouteSequence() {
+        this.activeRouteIndex = -1;
+    }
+
+    finishCurrentRoute() {
+        if (this.activeRouteIndex === -1) return;
+
+        const rt = this.routes[this.activeRouteIndex];
+
+        if (rt.poly) rt.poly.setMap(null);
+        rt.stops.forEach(s => s.map = null);
+
+        if (rt.points.length >= 2) {
+            rt.poly = new google.maps.Polyline({
+                map: this.map,
+                path: rt.points,
+                strokeColor: rt.color,
+                strokeWeight: rt.weight,
+                strokeOpacity: rt.opacity,
+                zIndex: 10
+            });
+
+            rt.poly.addListener("mouseover", () => {
+                if (!this.cardPinned) this.openRouteCard(this.activeRouteIndex, true);
+            });
+
+            rt.poly.addListener("mouseout", () => {
+                if (!this.cardPinned && this.infoWin) {
+                    setTimeout(() => {
+                        if (!this.cardPinned && this.infoWin) {
+                            this.infoWin.close();
+                        }
+                    }, 150);
+                }
+            });
+
+            rt.poly.addListener("click", () => {
+                this.openRouteCard(this.activeRouteIndex, false);
+            });
+
+            bus.emit("persist");
+        } else {
+            this.routes.pop();
+        }
+
+        this.activeRouteIndex = -1;
+    }
+
+    createNewRoute() {
+        const route = {
+            id: "rt" + Date.now(),
+            points: [],
+            color: "#3344ff",
+            weight: 6,
+            opacity: 0.95,
+            distance: 0,
+            duration: 0,
+            overview: null,
+            poly: null,
+            stops: [],
+            notes: ""
+        };
+        this.routes.push(route);
+        this.activeRouteIndex = this.routes.length - 1;
+        return route;
+    }
+
+    addPointToRoute(routeIndex, latLng) {
+        const rt = this.routes[routeIndex];
+        rt.points.push(latLng);
+
+        const stop = this.createStopMarker(latLng, routeIndex, rt.points.length - 1);
+        rt.stops.push(stop);
+
+        if (rt.points.length >= 2) {
+            this.requestRoute(routeIndex);
+        } else {
+            bus.emit("persist");
+        }
+    }
+
+    createStopMarker(pos, routeIndex, idx) {
+        const rt = this.routes[routeIndex];
+
+        const el = document.createElement("div");
+        el.style.cssText = `
+            width:22px;
+            height:22px;
+            background:white;
+            border-radius:50%;
+            border:2px solid ${rt.color};
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:12px;
+            font-weight:bold;
+            z-index:101;
+        `;
+        el.textContent = idx + 1;
+
+        const marker = new google.maps.marker.AdvancedMarkerElement({
+            position: pos,
+            map: this.map,
+            content: el,
+            gmpDraggable: !this.shareMode
+        });
+
+        marker.addListener("dragend", () => {
+            rt.points[idx] = marker.position;
+            this.requestRoute(routeIndex);
+            bus.emit("persist");
+        });
+
+        marker.addListener("contextmenu", () => {
+            if (this.shareMode) return;
+            this.removePoint(routeIndex, idx);
+        });
+
+        return marker;
+    }
+
+    removePoint(routeIndex, idx) {
+        const rt = this.routes[routeIndex];
+
+        if (rt.stops[idx]) rt.stops[idx].map = null;
+
+        rt.points.splice(idx, 1);
+        rt.stops.splice(idx, 1);
+
+        rt.stops.forEach((m, i) => {
+            m.content.textContent = i + 1;
+        });
+
+        if (rt.points.length >= 2) {
+            this.requestRoute(routeIndex);
+        } else {
+            this.clearRoute(routeIndex);
+        }
+
+        bus.emit("persist");
+    }
+
+    removeRoute(routeIndex) {
+        const rt = this.routes[routeIndex];
+
+        if (rt.poly) rt.poly.setMap(null);
+        rt.stops.forEach(s => s.map = null);
+
+        this.routes.splice(routeIndex, 1);
+        this.activeRouteIndex = -1;
+
+        if (this.infoWin) this.infoWin.close();
+        this.cardPinned = false;
+
+        bus.emit("persist");
+    }
+
+    clearRoute(routeIndex) {
+        const rt = this.routes[routeIndex];
+        if (rt.poly) rt.poly.setMap(null);
+        rt.poly = null;
+        rt.overview = null;
+        rt.distance = 0;
+        rt.duration = 0;
+    }
+
+    requestRoute(routeIndex) {
+        if (!this.directionsService) {
+            this.directionsService = new google.maps.DirectionsService();
+        }
+
+        const rt = this.routes[routeIndex];
+        const pts = rt.points;
+
+        if (pts.length < 2) return;
+
+        const req = {
+            origin: pts[0],
+            destination: pts[pts.length - 1],
+            travelMode: google.maps.TravelMode.DRIVING
+        };
+
+        if (pts.length > 2) {
+            req.waypoints = pts.slice(1, -1).map(p => ({
+                location: p,
+                stopover: true
+            }));
+        }
+
+        this.directionsService.route(req, (res, status) => {
+            if (status !== "OK") {
+                bus.emit("toast", "تعذر حساب المسار");
+                return;
+            }
+
+            const r = res.routes[0];
+            rt.overview = r.overview_polyline;
+
+            rt.distance = r.legs.reduce((s, l) => s + l.distance.value, 0);
+            rt.duration = r.legs.reduce((s, l) => s + l.duration.value, 0);
+
+            this.renderRoute(routeIndex);
+
+            bus.emit("persist");
+        });
+    }
+
+    renderRoute(routeIndex) {
+        const rt = this.routes[routeIndex];
+
+        if (rt.poly) rt.poly.setMap(null);
+
+        let path;
+
+        if (rt.overview) {
+            path = google.maps.geometry.encoding.decodePath(rt.overview);
+        } else {
+            path = rt.points;
+        }
+
+        rt.poly = new google.maps.Polyline({
+            map: this.map,
+            path,
+            strokeColor: rt.color,
+            strokeWeight: rt.weight,
+            strokeOpacity: rt.opacity,
+            zIndex: 10
+        });
+
+        rt.poly.addListener("mouseover", () => {
+            if (!this.cardPinned) this.openRouteCard(routeIndex, true);
+        });
+
+        rt.poly.addListener("mouseout", () => {
+            if (!this.cardPinned && this.infoWin) {
+                setTimeout(() => {
+                    if (!this.cardPinned && this.infoWin) {
+                        this.infoWin.close();
+                    }
+                }, 150);
+            }
+        });
+
+        rt.poly.addListener("click", () => {
+            this.openRouteCard(routeIndex, false);
+        });
+    }
 
     openRouteCard(routeIndex, hoverOnly = false) {
-        const rt = this.routes[routeIndex]; const dist = Utils.formatDistance(rt.distance); const dur = Utils.formatDuration(rt.duration); const notes = Utils.escapeHTML(rt.notes || "");
-        const cardStyle = `font-family: 'Cairo', sans-serif; background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1); padding: 0; color: #f0f0f0; direction: rtl; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); max-width: 95vw; width: 320px; overflow: hidden;`;
-        const headerStyle = `display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255, 255, 255, 0.1); border-bottom: 1px solid rgba(255, 255, 255, 0.1);`;
+        const rt = this.routes[routeIndex];
+        const dist = Utils.formatDistance(rt.distance);
+        const dur = Utils.formatDuration(rt.duration);
+        const notes = Utils.escapeHTML(rt.notes || "");
+
+        const cardStyle = `
+            font-family: 'Cairo', sans-serif;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(20px) saturate(1.8);
+            -webkit-backdrop-filter: blur(20px) saturate(1.8);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 0;
+            color: #f0f0f0;
+            direction: rtl;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            max-width: 95vw;
+            width: 320px;
+            overflow: hidden;
+        `;
+        const headerStyle = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        `;
         const bodyStyle = `padding: 20px;`;
-        const html = `<div style="${cardStyle}"><div style="${headerStyle}"><h3 style="margin:0; font-family: 'Tajawal', sans-serif; font-size: 18px; font-weight: 700;">معلومات المسار ${routeIndex + 1}</h3><img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;"></div><div style="${bodyStyle}"><div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; font-family: 'Cairo', sans-serif;"><span><b>المسافة:</b> ${dist}</span><span><b>الوقت:</b> ${dur}</span></div><p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc; font-family: 'Cairo', sans-serif;">ملاحظات:</p><div style="background: rgba(52, 168, 83, 0.1); padding: 10px; border-radius: 10px; min-height: 40px; font-size: 14px; line-height: 1.6; font-family: 'Cairo', sans-serif;">${notes || '<span style="color: #888;">لا توجد ملاحظات</span>'}</div></div></div>`;
+        const html = `
+        <div style="${cardStyle}">
+            <div style="${headerStyle}">
+                <h3 style="margin:0; font-family: 'Tajawal', sans-serif; font-size: 18px; font-weight: 700;">معلومات المسار ${routeIndex + 1}</h3>
+                <img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;">
+            </div>
+            <div style="${bodyStyle}">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; font-family: 'Cairo', sans-serif;">
+                    <span><b>المسافة:</b> ${dist}</span>
+                    <span><b>الوقت:</b> ${dur}</span>
+                </div>
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc; font-family: 'Cairo', sans-serif;">ملاحظات:</p>
+                <div style="background: rgba(52, 168, 83, 0.1); padding: 10px; border-radius: 10px; min-height: 40px; font-size: 14px; line-height: 1.6; font-family: 'Cairo', sans-serif;">
+                    ${notes || '<span style="color: #888;">لا توجد ملاحظات</span>'}
+                </div>
+            </div>
+        </div>`;
+
         if (!this.infoWin) this.infoWin = new google.maps.InfoWindow({ maxWidth: 400 });
         this.infoWin.setContent(html);
         this.infoWin.setPosition(this.getRouteCenter(rt));
@@ -361,12 +681,81 @@ class RouteManager {
         google.maps.event.addListenerOnce(this.infoWin, "domready", () => this.attachRouteCardEvents(routeIndex, hoverOnly));
     }
 
-    getRouteCenter(rt) { const path = rt.poly.getPath(); const bounds = new google.maps.LatLngBounds(); for (let i = 0; i < path.getLength(); i++) bounds.extend(path.getAt(i)); return bounds.getCenter(); }
-    attachRouteCardEvents(routeIndex, hoverOnly) { if (hoverOnly) return; const rt = this.routes[routeIndex]; const closeBtn = document.getElementById("route-close"); if (closeBtn) closeBtn.addEventListener("click", () => { this.infoWin.close(); this.cardPinned = false; }); }
-    exportState() { return this.routes.map(rt => ({ id: rt.id, color: rt.color, weight: rt.weight, opacity: rt.opacity, distance: rt.distance, duration: rt.duration, overview: rt.overview, notes: rt.notes, points: rt.points.map(p => ({ lat: typeof p.lat === 'function' ? p.lat() : p.lat, lng: typeof p.lng === 'function' ? p.lng() : p.lng })) })); }
-    applyState(state) { if (!state || !state.routes) return; this.routes.forEach(rt => { if (rt.poly) rt.poly.setMap(null); rt.stops.forEach(s => s.map = null); }); this.routes = []; state.routes.forEach(rt => { const newRoute = { id: rt.id, color: rt.color, weight: rt.weight, opacity: rt.opacity, distance: rt.distance, duration: rt.duration, overview: rt.overview, notes: rt.notes || "", points: rt.points.map(p => new google.maps.LatLng(p.lat, p.lng)), poly: null, stops: [] }; this.routes.push(newRoute); newRoute.points.forEach((pt, i) => { const stop = this.createStopMarker(pt, this.routes.length - 1, i); newRoute.stops.push(stop); }); this.renderRoute(this.routes.length - 1); }); }
+    getRouteCenter(rt) {
+        const path = rt.poly.getPath();
+        const bounds = new google.maps.LatLngBounds();
+        for (let i = 0; i < path.getLength(); i++) {
+            bounds.extend(path.getAt(i));
+        }
+        return bounds.getCenter();
+    }
+
+    attachRouteCardEvents(routeIndex, hoverOnly) {
+        if (hoverOnly) return;
+        const rt = this.routes[routeIndex];
+        const closeBtn = document.getElementById("route-close");
+        if (closeBtn) closeBtn.addEventListener("click", () => {
+            this.infoWin.close();
+            this.cardPinned = false;
+        });
+    }
+
+    exportState() {
+        return this.routes.map(rt => ({
+            id: rt.id,
+            color: rt.color,
+            weight: rt.weight,
+            opacity: rt.opacity,
+            distance: rt.distance,
+            duration: rt.duration,
+            overview: rt.overview,
+            notes: rt.notes,
+            points: rt.points.map(p => ({
+                lat: typeof p.lat === 'function' ? p.lat() : p.lat,
+                lng: typeof p.lng === 'function' ? p.lng() : p.lng
+            }))
+        }));
+    }
+
+    applyState(state) {
+        if (!state || !state.routes) return;
+
+        this.routes.forEach(rt => {
+            if (rt.poly) rt.poly.setMap(null);
+            rt.stops.forEach(s => s.map = null);
+        });
+
+        this.routes = [];
+
+        state.routes.forEach(rt => {
+            const newRoute = {
+                id: rt.id,
+                color: rt.color,
+                weight: rt.weight,
+                opacity: rt.opacity,
+                distance: rt.distance,
+                duration: rt.duration,
+                overview: rt.overview,
+                notes: rt.notes || "",
+                points: rt.points.map(p => new google.maps.LatLng(p.lat, p.lng)),
+                poly: null,
+                stops: []
+            };
+            this.routes.push(newRoute);
+
+            newRoute.points.forEach((pt, i) => {
+                const stop = this.createStopMarker(pt, this.routes.length - 1, i);
+                newRoute.stops.push(stop);
+            });
+
+            this.renderRoute(this.routes.length - 1);
+        });
+    }
 }
+
+// هذا هو السطر المهم الذي يجب أن يكون صحيحًا
 const ROUTES = new RouteManager();
+
 
 /* ============================================================
    PolygonManager — إدارة المضلعات + بطاقات Glass
@@ -655,14 +1044,12 @@ const SHARE = new ShareManager();
 ============================================================ */
 
 /* ============================================================
-   UIManager — واجهة المستخدم (النسخة الكاملة والمحدثة)
+   UIManager — واجهة المستخدم (النسخة المصححة والكاملة)
 ============================================================ */
 class UIManager {
 
     constructor() {
         this.logo = "/img/logo.png";
-
-        // الحصول على جميع الأزرار من الصفحة
         this.btnRoadmap = document.getElementById("btn-roadmap");
         this.btnSatellite = document.getElementById("btn-satellite");
         this.btnTraffic = document.getElementById("btn-traffic");
@@ -682,16 +1069,14 @@ class UIManager {
     }
 
     initializeUI() {
-        if (MAP.shareMode) {
-            this.applyShareMode();
-        }
+        if (MAP.shareMode) this.applyShareMode();
 
-        // أحداث التحكم بالخريطة
+        // أحداث الخريطة
         if (this.btnRoadmap) {
             this.btnRoadmap.addEventListener("click", () => {
                 MAP.setRoadmap();
-                this.btnRoadmap.setAttribute("aria-pressed", "true");
-                this.btnSatellite.setAttribute("aria-pressed", "false");
+                this.btnRoadmap.setAttribute("aria-pressed","true");
+                this.btnSatellite.setAttribute("aria-pressed","false");
                 this.showToast("تم التبديل لخريطة الطرق");
             });
         }
@@ -699,8 +1084,8 @@ class UIManager {
         if (this.btnSatellite) {
             this.btnSatellite.addEventListener("click", () => {
                 MAP.setSatellite();
-                this.btnRoadmap.setAttribute("aria-pressed", "false");
-                this.btnSatellite.setAttribute("aria-pressed", "true");
+                this.btnRoadmap.setAttribute("aria-pressed","false");
+                this.btnSatellite.setAttribute("aria-pressed","true");
                 this.showToast("تم التبديل للأقمار الصناعية");
             });
         }
@@ -725,7 +1110,7 @@ class UIManager {
             });
         }
 
-        // أحداث الرسم (المواقع، المسارات، المضلعات)
+        // أحداث الرسم
         if (this.btnAdd && !MAP.shareMode) {
             this.btnAdd.addEventListener("click", () => {
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
@@ -771,23 +1156,12 @@ class UIManager {
         this.updateModeBadge();
     }
 
-    /**
-     * دالة لتنظيم وتفعيل أوضاع الرسم المختلفة
-     * @param {'add'|'route'|'polygon'} mode - الوضع المطلوب تفعيله
-     */
+    // دالة لتنظيم أوضاع الرسم
     setActiveMode(mode) {
-        // إذا كان المستخدم يحرر مضلعًا، لا تسمح بتفعيل أوضاع أخرى
-        if (POLYGONS.isEditing) {
-            this.showToast("يرجى إنهاء تحرير المضلع الحالي أولاً");
-            return;
-        }
-
-        // إيقاف جميع الأوضاع أولاً
         MAP.modeAdd = false;
         MAP.modeRouteAdd = false;
         MAP.modePolygonAdd = false;
 
-        // إعادة تعيين حالة الأزرار
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.setAttribute("aria-pressed", "false");
         if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "false");
@@ -826,9 +1200,6 @@ class UIManager {
         this.updateModeBadge("view");
     }
 
-    /**
-     * إظهار واجهة إنهاء الرسم (للمسارات والمضلعات)
-     */
     showDrawFinishUI() {
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.style.display = "none";
@@ -836,23 +1207,18 @@ class UIManager {
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "inline-block";
     }
 
-    /**
-     * إظهار الواجهة الافتراضية (أزرار الرسم الرئيسية)
-     */
     showDefaultUI() {
         if (this.btnRoute) this.btnRoute.style.display = "inline-block";
         if (this.btnPolygon) this.btnPolygon.style.display = "inline-block";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
-    }
 
-    /**
-     * إظهار واجهة تحرير المضلع (إخفاء جميع الأزرار)
-     */
-    showPolygonEditingUI() {
-        if (this.btnAdd) this.btnAdd.style.display = "none";
-        if (this.btnRoute) this.btnRoute.style.display = "none";
-        if (this.btnPolygon) this.btnPolygon.style.display = "none";
-        if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
+        // === هذا هو السطر المهم الذي يصلح المشكلة ===
+        // إعادة تعيين جميع أوضاع الرسم إلى الوضع الافتراضي
+        MAP.modeAdd = false;
+        MAP.modeRouteAdd = false;
+        MAP.modePolygonAdd = false;
+        MAP.setCursor("grab");
+        // =================================================
     }
 
     updateModeBadge(forceMode = null) {
