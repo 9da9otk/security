@@ -128,9 +128,18 @@ const Utils = {
         const h = Math.floor(m / 60);
         const r = m % 60;
         return `${h} ساعة ${r} دقيقة`;
+    },
+
+    // === هذه هي الدالة الجديدة التي يجب إضافتها ===
+    formatArea(meters) {
+        if (!meters) return "0 م²";
+        if (meters >= 1000000) {
+            return (meters / 1000000).toFixed(2) + " كم²";
+        }
+        // استخدام toLocaleString لتنسيق الأرقام الكبيرة (مثل 500,000)
+        return Math.round(meters).toLocaleString('ar-SA') + " م²";
     }
 };
-
 
 /* ============================================================
    MapController — وحدة إدارة الخريطة
