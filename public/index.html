@@ -17,15 +17,122 @@
     #toast {position: fixed;bottom: -80px;left: 50%;transform: translateX(-50%);padding: 12px 20px;background: rgba(20,20,20,0.9);border-radius: 12px;border: 1px solid rgba(255,255,255,0.1);backdrop-filter: blur(14px);color: white;font-size: 14px;z-index: 999999;min-width: 180px;text-align: center;transition: 0.35s;}
     #toast.show {bottom: 28px;}
     @media(max-width: 768px) {#toolbar {left: 14px;right: 14px;flex-wrap: wrap;justify-content: center;}.btn {flex: 1 1 auto;min-width: 74px;}}
+    
+    /* ===== تنسيق لوحة الطبقات الجديدة ===== */
+    .layers-panel {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        width: 280px;
+        background: rgba(22, 22, 24, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        color: white;
+        font-family: 'Tajawal', sans-serif;
+        z-index: 99999;
+        display: none; /* مخفية افتراضيًا */
+        flex-direction: column;
+    }
+
+    .layers-panel.show {
+        display: flex;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .panel-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .btn-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 22px;
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .panel-content {
+        padding: 16px;
+    }
+
+    .layer-group {
+        margin-bottom: 20px;
+    }
+
+    .layer-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .layer-group h4 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        color: #ccc;
+        font-weight: 500;
+    }
+
+    .layer-group label {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 5px;
+        border-radius: 6px;
+        transition: background-color 0.2s;
+    }
+
+    .layer-group label:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .layer-group input {
+        margin-left: 10px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- لوحة الطبقات الجديدة -->
+  <div id="layers-panel" class="layers-panel">
+    <div class="panel-header">
+      <h3>طبقات الخريطة</h3>
+      <button id="btn-close-layers" class="btn-close">&times;</button>
+    </div>
+    <div class="panel-content">
+      <div class="layer-group">
+        <h4>نوع الخريطة</h4>
+        <label><input type="radio" name="base-map" value="roadmap" checked> طرق</label>
+        <label><input type="radio" name="base-map" value="satellite"> قمر صناعي</label>
+        <label><input type="radio" name="base-map" value="terrain"> تضاريس</label>
+        <label><input type="radio" name="base-map" value="dark"> الوضع الليلي</label>
+        <label><input type="radio" name="base-map" value="silver"> فضي</label>
+      </div>
+      <div class="layer-group">
+        <h4>طبقات إضافية</h4>
+        <label><input type="checkbox" id="layer-traffic"> حركة المرور</label>
+        <label><input type="checkbox" id="layer-bicycling"> مسارات الدراجات</label>
+        <label><input type="checkbox" id="layer-transit"> خطوط النقل العام</label>
+      </div>
+    </div>
+  </div>
+
   <div id="toolbar">
-    <button id="btn-roadmap" class="btn" aria-pressed="true">طرق</button>
-    <button id="btn-satellite" class="btn" aria-pressed="false">قمر صناعي</button>
-    <button id="btn-traffic" class="btn" aria-pressed="false">حركة المرور</button>
+    <!-- تم استبدال أزرار الخريطة بـ زر الطبقات -->
+    <button id="btn-layers" class="btn" aria-pressed="false">طبقات</button>
     <button id="btn-add" class="btn" aria-pressed="false">إضافة موقع</button>
     <button id="btn-polygon" class="btn" aria-pressed="false">مضلع</button>
     <button id="btn-route" class="btn" aria-pressed="false">مسار</button>
