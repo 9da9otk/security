@@ -331,11 +331,12 @@ const LOCATIONS = new LocationManager();
 ============================================================ */
 
 /* ============================================================
-   RouteManager — إدارة المسارات + بطاقات Glass (التصميم الجديد)
+   RouteManager — إدارة المسارات + بطاقات Glass (النسخة الكاملة)
 ============================================================ */
 class RouteManager {
 
     constructor() {
+        console.log("RouteManager: Constructor called.");
         this.routes = [];
         this.map = null;
         this.shareMode = false;
@@ -346,6 +347,7 @@ class RouteManager {
         this.activeRouteIndex = -1;
 
         bus.on("map:ready", map => {
+            console.log("RouteManager: map:ready event received.");
             this.map = map;
             this.shareMode = MAP.shareMode;
             this.editMode = MAP.editMode;
@@ -357,12 +359,16 @@ class RouteManager {
     }
 
     onMapReady() {
+        console.log("RouteManager: onMapReady called.");
         this.map.addListener("click", e => {
+            console.log("RouteManager: Map clicked. modeRouteAdd:", MAP.modeRouteAdd, "shareMode:", this.shareMode);
             if (!MAP.modeRouteAdd || this.shareMode) return;
 
             if (this.activeRouteIndex === -1) {
+                console.log("RouteManager: No active route, creating new one.");
                 this.createNewRoute();
             }
+            console.log("RouteManager: Adding point to route index:", this.activeRouteIndex);
             this.addPointToRoute(this.activeRouteIndex, e.latLng);
         });
 
@@ -375,10 +381,12 @@ class RouteManager {
     }
 
     startNewRouteSequence() {
+        console.log("RouteManager: startNewRouteSequence called. Resetting activeRouteIndex to -1.");
         this.activeRouteIndex = -1;
     }
 
     finishCurrentRoute() {
+        console.log("RouteManager: finishCurrentRoute called for index:", this.activeRouteIndex);
         if (this.activeRouteIndex === -1) return;
 
         const rt = this.routes[this.activeRouteIndex];
@@ -387,6 +395,7 @@ class RouteManager {
         rt.stops.forEach(s => s.map = null);
 
         if (rt.points.length >= 2) {
+            console.log("RouteManager: Route has enough points, rendering.");
             rt.poly = new google.maps.Polyline({
                 map: this.map,
                 path: rt.points,
@@ -416,6 +425,7 @@ class RouteManager {
 
             bus.emit("persist");
         } else {
+            console.log("RouteManager: Not enough points, removing route.");
             this.routes.pop();
         }
 
@@ -423,6 +433,7 @@ class RouteManager {
     }
 
     createNewRoute() {
+        console.log("RouteManager: createNewRoute called.");
         const route = {
             id: "rt" + Date.now(),
             points: [],
@@ -438,10 +449,12 @@ class RouteManager {
         };
         this.routes.push(route);
         this.activeRouteIndex = this.routes.length - 1;
+        console.log("RouteManager: New route created. activeRouteIndex is now:", this.activeRouteIndex);
         return route;
     }
 
     addPointToRoute(routeIndex, latLng) {
+        console.log(`RouteManager: addPointToRoute called for index ${routeIndex} at latLng:`, latLng);
         const rt = this.routes[routeIndex];
         rt.points.push(latLng);
 
@@ -449,8 +462,10 @@ class RouteManager {
         rt.stops.push(stop);
 
         if (rt.points.length >= 2) {
+            console.log("RouteManager: Now have 2+ points, requesting route from API.");
             this.requestRoute(routeIndex);
         } else {
+            console.log("RouteManager: Only one point, emitting persist.");
             bus.emit("persist");
         }
     }
@@ -751,7 +766,7 @@ class RouteManager {
     }
 }
 
-// هام: تأكد من أن هذا السطر صحيح ويحتوي على حرف E
+// هذا هو السطر المهم الذي يجب أن يكون صحيحًا
 const ROUTES = new RouteManager();
 
 /* ============================================================
@@ -1483,6 +1498,7 @@ class UIManager {
     constructor() {
         this.logo = "/img/logo.png";
 
+        // الحصول على جميع الأزرار من الصفحة
         this.btnRoadmap = document.getElementById("btn-roadmap");
         this.btnSatellite = document.getElementById("btn-satellite");
         this.btnTraffic = document.getElementById("btn-traffic");
@@ -1502,9 +1518,12 @@ class UIManager {
     }
 
     initializeUI() {
-        if (MAP.shareMode) this.applyShareMode();
+        console.log("UI: initializeUI() called.");
+        if (MAP.shareMode) {
+            this.applyShareMode();
+        }
 
-        // أحداث الخريطة
+        // أحداث التحكم بالخريطة
         if (this.btnRoadmap) {
             this.btnRoadmap.addEventListener("click", () => {
                 MAP.setRoadmap();
@@ -1543,7 +1562,7 @@ class UIManager {
             });
         }
 
-        // --- منطق الأزرار المُصلح ---
+        // أحداث الرسم (المواقع، المسارات، المضلعات)
         if (this.btnAdd && !MAP.shareMode) {
             this.btnAdd.addEventListener("click", () => {
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
@@ -1552,7 +1571,9 @@ class UIManager {
         }
 
         if (this.btnRoute && !MAP.shareMode) {
+            console.log("UI: Adding listener to btn-route.");
             this.btnRoute.addEventListener("click", () => {
+                console.log("UI: btn-route clicked.");
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
                 this.setActiveMode('route');
             });
@@ -1567,7 +1588,7 @@ class UIManager {
 
         if (this.btnDrawFinish && !MAP.shareMode) {
             this.btnDrawFinish.addEventListener("click", () => {
-                // هام: تأكد من أن هذا السطر يستخدم ROUTES (مع حرف E)
+                console.log("UI: btn-draw-finish clicked.");
                 if (MAP.modeRouteAdd) {
                     ROUTES.finishCurrentRoute();
                 } else if (MAP.modePolygonAdd) {
@@ -1579,7 +1600,6 @@ class UIManager {
 
         if (this.btnRouteClear && !MAP.shareMode) {
             this.btnRouteClear.addEventListener("click", () => {
-                // هام: تأكد من أن هذا السطر يستخدم ROUTES (مع حرف E)
                 if (ROUTES.activeRouteIndex === -1) return this.showToast("لا يوجد مسار نشط لحذفه");
                 if (!confirm("حذف المسار الحالي؟")) return;
                 ROUTES.removeRoute(ROUTES.activeRouteIndex);
@@ -1591,12 +1611,23 @@ class UIManager {
         this.updateModeBadge();
     }
 
-    // دالة لتنظيم أوضاع الرسم
+    /**
+     * دالة لتنظيم وتفعيل أوضاع الرسم المختلفة
+     * @param {'add'|'route'|'polygon'} mode - الوضع المطلوب تفعيله
+     */
     setActiveMode(mode) {
+        console.log("UI: setActiveMode called with mode:", mode);
+        if (POLYGONS.isEditing) {
+            this.showToast("يرجى إنهاء تحرير المضلع الحالي أولاً");
+            return;
+        }
+
+        // إيقاف جميع الأوضاع أولاً
         MAP.modeAdd = false;
         MAP.modeRouteAdd = false;
         MAP.modePolygonAdd = false;
 
+        // إعادة تعيين حالة الأزرار
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.setAttribute("aria-pressed", "false");
         if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "false");
@@ -1612,6 +1643,7 @@ class UIManager {
                 this.showToast("اضغط على الخريطة لإضافة موقع");
                 break;
             case 'route':
+                console.log("UI: Starting new route sequence.");
                 ROUTES.startNewRouteSequence();
                 this.showDrawFinishUI();
                 this.showToast("اضغط لإضافة نقاط المسار الأول");
@@ -1635,6 +1667,9 @@ class UIManager {
         this.updateModeBadge("view");
     }
 
+    /**
+     * إظهار واجهة إنهاء الرسم (للمسارات والمضلعات)
+     */
     showDrawFinishUI() {
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.style.display = "none";
@@ -1642,9 +1677,22 @@ class UIManager {
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "inline-block";
     }
 
+    /**
+     * إظهار الواجهة الافتراضية (أزرار الرسم الرئيسية)
+     */
     showDefaultUI() {
         if (this.btnRoute) this.btnRoute.style.display = "inline-block";
         if (this.btnPolygon) this.btnPolygon.style.display = "inline-block";
+        if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
+    }
+
+    /**
+     * إظهار واجهة تحرير المضلع (إخفاء جميع الأزرار)
+     */
+    showPolygonEditingUI() {
+        if (this.btnAdd) this.btnAdd.style.display = "none";
+        if (this.btnRoute) this.btnRoute.style.display = "none";
+        if (this.btnPolygon) this.btnPolygon.style.display = "none";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
     }
 
