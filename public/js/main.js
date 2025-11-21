@@ -800,7 +800,7 @@ const ROUTES = new RouteManager();
 ============================================================ */
 
 /* ============================================================
-   PolygonManager — إدارة المضلعات + بطاقات Glass (مع دعم الملاحظات ونافذة معلومات مركزية)
+   PolygonManager — إدارة المضلعات + بطاقات Glass (مع عرض المساحة)
    ============================================================ */
 class PolygonManager {
 
@@ -874,7 +874,7 @@ class PolygonManager {
         const polygon = {
             id: "poly" + Date.now(),
             name: "مضلع جديد",
-            notes: "", // إضافة حقل الملاحظات
+            notes: "",
             points: [],
             color: "#ff9800",
             strokeWeight: 2,
@@ -1034,6 +1034,11 @@ class PolygonManager {
         const isEditable = !hoverOnly && MAP.editMode && !isEditingShape;
         const notes = Utils.escapeHTML(poly.notes || "");
 
+        // === التعديل الرئيسي هنا ===
+        // حساب المساحة وتنسيقها
+        const area = google.maps.geometry.spherical.computeArea(poly.points);
+        const areaText = Utils.formatArea(area);
+
         const cardStyle = `
             font-family: 'Cairo', sans-serif;
             background: rgba(255, 255, 255, 0.85);
@@ -1070,11 +1075,15 @@ class PolygonManager {
                 <h3 style="margin:0; font-family: 'Tajawal', sans-serif; font-size: 18px; font-weight: 700;">${Utils.escapeHTML(poly.name)}</h3>
                 <img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;">
             </div>
-            ${isEditingShape ? `
-                <div style="${bodyStyle}"><p style="margin: 0; color: #555; text-align:center; font-family: 'Cairo', sans-serif;">اسحب النقاط لتعديل الشكل. انقر على الحدود لإضافة نقطة. انقر بزر الماوس الأيمن على نقطة لحذفها.</p></div>
-                <div style="${footerStyle}"><button id="poly-stop-edit" style="width: 100%; background:#ff9800;color:white;border:none;border-radius:12px;padding:10px;cursor:pointer;font-weight:600; font-family: 'Tajawal', sans-serif;">إنهاء التحرير</button></div>
-            ` : (isEditable ? `
-                <div style="${bodyStyle}">
+            <div style="${bodyStyle}">
+                <!-- عرض المساحة هنا -->
+                <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; font-family: 'Cairo', sans-serif;">
+                    <span><b>المساحة:</b> ${areaText}</span>
+                </div>
+                
+                ${isEditingShape ? `
+                    <p style="margin: 0; color: #555; text-align:center; font-family: 'Cairo', sans-serif;">اسحب النقاط لتعديل الشكل. انقر على الحدود لإضافة نقطة. انقر بزر الماوس الأيمن على نقطة لحذفها.</p>
+                ` : (isEditable ? `
                     <div style="margin-bottom:14px;">
                         <label style="font-size:12px; display:block; margin-bottom:4px; font-family: 'Cairo', sans-serif;">الاسم:</label>
                         <input id="poly-name" type="text" value="${Utils.escapeHTML(poly.name)}" style="width:100%;padding:7px;border-radius:6px;border:1px solid #ddd;box-sizing:border-box;">
@@ -1101,7 +1110,15 @@ class PolygonManager {
                         <label style="font-size:12px; display:block; margin-bottom:4px; font-family: 'Cairo', sans-serif;">ملاحظات:</label>
                         <textarea id="poly-notes" rows="3" style="width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ddd; resize: none; box-sizing: border-box; font-family: 'Cairo', sans-serif; font-size: 14px;">${notes}</textarea>
                     </div>
-                </div>
+                ` : `
+                    <p style="margin: 0 0 8px 0; font-size: 14px; color: #555; font-family: 'Cairo', sans-serif;">ملاحظات:</p>
+                    <div style="background: rgba(52, 168, 83, 0.1); padding: 10px; border-radius: 10px; min-height: 40px; font-size: 14px; line-height: 1.6; font-family: 'Cairo', sans-serif;">
+                        ${notes || '<span style="color: #888;">لا توجد ملاحظات</span>'}
+                    </div>
+                `)
+                }
+            </div>
+            ${isEditable ? `
                 <div style="${footerStyle}">
                     <div style="display:flex;gap:8px; flex-wrap: wrap;">
                         <button id="poly-save-properties" style="flex:2;background:#ff9800;color:white;border:none;border-radius:12px;padding:10px;cursor:pointer;font-weight:600; font-family: 'Tajawal', sans-serif; min-width: 100px;">حفظ الخصائص</button>
@@ -1110,15 +1127,7 @@ class PolygonManager {
                         <button id="poly-close" style="flex:1;background:rgba(0,0,0,0.05);color:#333;border:1px solid #ddd;border-radius:12px;padding:10px;cursor:pointer;font-weight:600; font-family: 'Tajawal', sans-serif; min-width: 80px;">إغلاق</button>
                     </div>
                 </div>
-            ` : `
-                <div style="${bodyStyle}">
-                    <p style="margin: 0 0 8px 0; font-size: 14px; color: #555; font-family: 'Cairo', sans-serif;">ملاحظات:</p>
-                    <div style="background: rgba(52, 168, 83, 0.1); padding: 10px; border-radius: 10px; min-height: 40px; font-size: 14px; line-height: 1.6; font-family: 'Cairo', sans-serif;">
-                        ${notes || '<span style="color: #888;">لا توجد ملاحظات</span>'}
-                    </div>
-                </div>
-            `)
-            }
+            ` : ''}
         </div>`;
 
         UI.openSharedInfoCard(html, this.getPolygonCenter(poly), !hoverOnly);
@@ -1151,7 +1160,7 @@ class PolygonManager {
         const delBtn = document.getElementById("poly-delete");
         const closeBtn = document.getElementById("poly-close");
         const nameEl = document.getElementById("poly-name");
-        const notesEl = document.getElementById("poly-notes"); // إضافة عنصر الملاحظات
+        const notesEl = document.getElementById("poly-notes");
         const colEl = document.getElementById("poly-color");
         const strokeEl = document.getElementById("poly-stroke");
         const strokeOpEl = document.getElementById("poly-stroke-opacity");
@@ -1173,7 +1182,7 @@ class PolygonManager {
         if (savePropsBtn) {
             savePropsBtn.addEventListener("click", () => {
                 poly.name = nameEl.value.trim();
-                poly.notes = notesEl.value.trim(); // حفظ الملاحظات
+                poly.notes = notesEl.value.trim();
                 poly.color = colEl.value;
                 poly.strokeWeight = Utils.clamp(+strokeEl.value, 1, 10);
                 poly.strokeOpacity = Utils.clamp(+strokeOpEl.value, 0, 100) / 100;
@@ -1216,7 +1225,7 @@ class PolygonManager {
         return this.polygons.filter(p => p.polygon).map(poly => ({
             id: poly.id,
             name: poly.name,
-            notes: poly.notes, // تصدير الملاحظات
+            notes: poly.notes,
             color: poly.color,
             strokeWeight: poly.strokeWeight,
             strokeOpacity: poly.strokeOpacity,
@@ -1241,7 +1250,7 @@ class PolygonManager {
             const newPoly = {
                 id: polyData.id,
                 name: polyData.name,
-                notes: polyData.notes || "", // استيراد الملاحظات
+                notes: polyData.notes || "",
                 color: polyData.color,
                 strokeWeight: polyData.strokeWeight,
                 strokeOpacity: polyData.strokeOpacity,
@@ -1270,6 +1279,7 @@ class PolygonManager {
 }
 
 const POLYGONS = new PolygonManager();
+
 /* ============================================================
    StateManager — النظام الرئيس لحفظ واسترجاع state
 ============================================================ */
