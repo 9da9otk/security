@@ -389,6 +389,9 @@ class RouteManager {
         console.log("RouteManager: finishCurrentRoute called for index:", this.activeRouteIndex);
         if (this.activeRouteIndex === -1) return;
 
+        MAP.modeRouteAdd = false; 
+        MAP.setCursor("grab");
+
         const rt = this.routes[this.activeRouteIndex];
 
         if (rt.poly) rt.poly.setMap(null);
@@ -1645,6 +1648,8 @@ class UIManager {
             case 'route':
                 console.log("UI: Starting new route sequence.");
                 ROUTES.startNewRouteSequence();
+                MAP.modeRouteAdd = true;
+                MAP.setCursor("crosshair"); 
                 this.showDrawFinishUI();
                 this.showToast("اضغط لإضافة نقاط المسار الأول");
                 break;
