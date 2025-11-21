@@ -224,7 +224,7 @@ const MAP = new MapController();
    LocationManager — المواقع + بطاقات Glass (تصميم موحد)
 ============================================================ */
 /* ============================================================
-   LocationManager — المواقع + بطاقات Glass (مع نافذة معلومات مركزية)
+   LocationManager — المواقع + بطاقات Glass (متجاوبة)
    ============================================================ */
 class LocationManager {
 
@@ -265,7 +265,21 @@ class LocationManager {
         const recipientsHtml = item.recipients.map(r => Utils.escapeHTML(r)).join('<br>');
         const isEditable = !hoverOnly && MAP.editMode;
 
-        const cardStyle = `font-family: 'Cairo', sans-serif; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.3); padding: 0; color: #333; direction: rtl; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); max-width: 95vw; width: 360px; overflow: hidden;`;
+        // === تعديل تجاوب الكرت ===
+        const cardStyle = `
+            font-family: 'Cairo', sans-serif; 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); 
+            border-radius: 20px; 
+            border: 1px solid rgba(255, 255, 255, 0.3); 
+            padding: 0; 
+            color: #333; 
+            direction: rtl; 
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15); 
+            max-width: 95vw; 
+            width: 360px; 
+            overflow: hidden;
+        `;
         const headerStyle = `display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: rgba(255, 255, 255, 0.6); border-bottom: 1px solid rgba(255, 255, 255, 0.2);`;
         const bodyStyle = `padding: 20px;`;
         const footerStyle = `padding: 12px 20px; background: rgba(255, 255, 255, 0.6); border-top: 1px solid rgba(255, 255, 255, 0.2);`;
@@ -311,14 +325,14 @@ class LocationManager {
 
     attachCardEvents(item, hoverOnly) {
         const closeBtn = document.getElementById("loc-close");
-        if (closeBtn) closeBtn.addEventListener("click", () => { UI.closeSharedInfoCard(); });
+        if (closeBtn) closeBtn.addEventListener("click", () => { UI.forceCloseSharedInfoCard(); });
         if (hoverOnly || !MAP.editMode) return;
         const saveBtn = document.getElementById("loc-save"); const delBtn = document.getElementById("loc-delete");
         const recEl = document.getElementById("loc-rec"); const colEl = document.getElementById("loc-color"); const radEl = document.getElementById("loc-radius");
         const opEl = document.getElementById("loc-opacity"); const opValEl = document.getElementById("loc-opacity-val");
         if(opEl) { opEl.addEventListener("input", () => { if(opValEl) opValEl.textContent = opEl.value + "%"; }); }
-        if (saveBtn) saveBtn.addEventListener("click", () => { item.recipients = recEl.value.split("\n").map(s => s.trim()).filter(Boolean); item.color = colEl.value; item.radius = Utils.clamp(+radEl.value, 5, 5000); item.fillOpacity = Utils.clamp(+opEl.value, 0, 100) / 100; item.circle.setOptions({ fillColor: item.color, strokeColor: item.color, radius: item.radius, fillOpacity: item.fillOpacity }); bus.emit("persist"); UI.closeSharedInfoCard(); bus.emit("toast", "تم حفظ التعديلات"); });
-        if (delBtn) delBtn.addEventListener("click", () => { if (!confirm(`حذف "${item.name}"؟`)) return; item.marker.map = null; item.circle.setMap(null); this.items = this.items.filter(x => x.id !== item.id); UI.closeSharedInfoCard(); bus.emit("persist"); bus.emit("toast", "تم حذف الموقع"); });
+        if (saveBtn) saveBtn.addEventListener("click", () => { item.recipients = recEl.value.split("\n").map(s => s.trim()).filter(Boolean); item.color = colEl.value; item.radius = Utils.clamp(+radEl.value, 5, 5000); item.fillOpacity = Utils.clamp(+opEl.value, 0, 100) / 100; item.circle.setOptions({ fillColor: item.color, strokeColor: item.color, radius: item.radius, fillOpacity: item.fillOpacity }); bus.emit("persist"); UI.forceCloseSharedInfoCard(); bus.emit("toast", "تم حفظ التعديلات"); });
+        if (delBtn) delBtn.addEventListener("click", () => { if (!confirm(`حذف "${item.name}"؟`)) return; item.marker.map = null; item.circle.setMap(null); this.items = this.items.filter(x => x.id !== item.id); UI.forceCloseSharedInfoCard(); bus.emit("persist"); bus.emit("toast", "تم حذف الموقع"); });
     }
 
     exportState() { return this.items.map(it => ({ id: it.id, name: it.name, lat: typeof it.marker.position.lat === 'function' ? it.marker.position.lat() : it.marker.position.lat, lng: typeof it.marker.position.lng === 'function' ? it.marker.position.lng() : it.marker.position.lng, color: it.color, radius: it.radius, fillOpacity: it.fillOpacity, recipients: it.recipients })); }
@@ -326,12 +340,13 @@ class LocationManager {
 }
 const LOCATIONS = new LocationManager();
 
+
 /* ============================================================
    RouteManager — إدارة المسارات + بطاقات Glass (تصميم موحد)
 ============================================================ */
 
 /* ============================================================
-   RouteManager — إدارة المسارات + بطاقات Glass (مع نافذة معلومات مركزية)
+   RouteManager — إدارة المسارات + بطاقات Glass (متجاوبة)
    ============================================================ */
 class RouteManager {
 
@@ -506,7 +521,7 @@ class RouteManager {
 
         this.routes.splice(routeIndex, 1);
         this.activeRouteIndex = -1;
-        UI.closeSharedInfoCard();
+        UI.forceCloseSharedInfoCard();
 
         bus.emit("persist");
     }
@@ -580,25 +595,20 @@ class RouteManager {
             strokeColor: rt.color,
             strokeWeight: rt.weight,
             strokeOpacity: rt.opacity,
-            zIndex: 10 // الطبقة الوسطى
+            zIndex: 10
         });
 
-        // === التغييرات الرئيسية هنا ===
-        // إضافة مستمعي الأحداث للتفاعل مع المسار
         rt.poly.addListener("mouseover", () => {
-            // عند التمرير، اعرض الكرت إذا لم يكن مثبتًا
             if (!UI.infoWindowPinned) {
                 this.openRouteCard(routeIndex, true);
             }
         });
 
         rt.poly.addListener("mouseout", () => {
-            // عند إبعاد المؤشر، أغلق الكرت إذا لم يكن مثبتًا
             UI.closeSharedInfoCard();
         });
 
         rt.poly.addListener("click", () => {
-            // عند النقر، اعرض الكرت وثبته
             this.openRouteCard(routeIndex, false);
         });
     }
@@ -610,9 +620,10 @@ class RouteManager {
         const notes = Utils.escapeHTML(rt.notes || "");
         const isEditable = !hoverOnly && MAP.editMode;
 
+        // === تعديل تجاوب الكرت ===
         const cardStyle = `
             font-family: 'Cairo', sans-serif;
-            background: rgba(20, 20, 20, 0.85);
+            background: rgba(20, 20, 20, 0.95);
             backdrop-filter: blur(20px) saturate(1.8);
             -webkit-backdrop-filter: blur(20px) saturate(1.8);
             border-radius: 20px;
@@ -729,7 +740,7 @@ class RouteManager {
                 });
 
                 bus.emit("persist");
-                UI.closeSharedInfoCard();
+                UI.forceCloseSharedInfoCard();
                 bus.emit("toast", "تم حفظ تعديلات المسار");
             });
         }
@@ -744,7 +755,7 @@ class RouteManager {
 
         if (closeBtn) {
             closeBtn.addEventListener("click", () => {
-                UI.closeSharedInfoCard();
+                UI.forceCloseSharedInfoCard();
             });
         }
     }
@@ -809,7 +820,7 @@ const ROUTES = new RouteManager();
 ============================================================ */
 
 /* ============================================================
-   PolygonManager — إدارة المضلعات + بطاقات Glass (مع عرض المساحة)
+   PolygonManager — إدارة المضلعات + بطاقات Glass (متجاوبة)
    ============================================================ */
 class PolygonManager {
 
@@ -932,7 +943,6 @@ class PolygonManager {
         return el;
     }
 
-    // --- دوال التحرير ---
     addPolygonEditListeners(poly, index) {
         poly.polygon.addListener("click", (e) => {
             if (this.editingPolygonIndex === index) {
@@ -1042,15 +1052,13 @@ class PolygonManager {
         const isEditingShape = this.editingPolygonIndex === polyIndex;
         const isEditable = !hoverOnly && MAP.editMode && !isEditingShape;
         const notes = Utils.escapeHTML(poly.notes || "");
-
-        // === التعديل الرئيسي هنا ===
-        // حساب المساحة وتنسيقها
         const area = google.maps.geometry.spherical.computeArea(poly.points);
         const areaText = Utils.formatArea(area);
 
+        // === تعديل تجاوب الكرت ===
         const cardStyle = `
             font-family: 'Cairo', sans-serif;
-            background: rgba(255, 255, 255, 0.85);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(20px) saturate(1.8);
             -webkit-backdrop-filter: blur(20px) saturate(1.8);
             border-radius: 20px;
@@ -1085,7 +1093,6 @@ class PolygonManager {
                 <img src="img/logo.png" style="width: 36px; height: 36px; border-radius: 8px;">
             </div>
             <div style="${bodyStyle}">
-                <!-- عرض المساحة هنا -->
                 <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; font-family: 'Cairo', sans-serif;">
                     <span><b>المساحة:</b> ${areaText}</span>
                 </div>
@@ -1157,7 +1164,7 @@ class PolygonManager {
             const stopEditBtn = document.getElementById("poly-stop-edit");
             if (stopEditBtn) stopEditBtn.addEventListener("click", () => {
                 this.exitEditMode();
-                UI.closeSharedInfoCard();
+                UI.forceCloseSharedInfoCard();
             });
             return;
         }
@@ -1206,27 +1213,27 @@ class PolygonManager {
                 });
 
                 bus.emit("persist");
-                UI.closeSharedInfoCard();
+                UI.forceCloseSharedInfoCard();
                 bus.emit("toast", "تم حفظ خصائص المضلع");
             });
         }
 
         if (editShapeBtn) editShapeBtn.addEventListener("click", () => {
             this.enterEditMode(polyIndex);
-            UI.closeSharedInfoCard();
+            UI.forceCloseSharedInfoCard();
         });
 
         if (delBtn) delBtn.addEventListener("click", () => {
             if (!confirm(`حذف "${poly.name}"؟`)) return;
             poly.polygon.setMap(null);
             this.polygons = this.polygons.filter(p => p.id !== poly.id);
-            UI.closeSharedInfoCard();
+            UI.forceCloseSharedInfoCard();
             bus.emit("persist");
             bus.emit("toast", "تم حذف المضلع");
         });
 
         if (closeBtn) closeBtn.addEventListener("click", () => {
-            UI.closeSharedInfoCard();
+            UI.forceCloseSharedInfoCard();
         });
     }
 
@@ -1288,7 +1295,6 @@ class PolygonManager {
 }
 
 const POLYGONS = new PolygonManager();
-
 /* ============================================================
    StateManager — النظام الرئيس لحفظ واسترجاع state
 ============================================================ */
@@ -1519,7 +1525,7 @@ const SHARE = new ShareManager();
 ============================================================ */
 
 /* ============================================================
-   UIManager — واجهة المستخدم (مع نافذة معلومات مركزية)
+   UIManager — واجهة المستخدم (مع نافذة معلومات مركزية ومتجاوبة)
    ============================================================ */
 class UIManager {
 
@@ -1535,6 +1541,7 @@ class UIManager {
         this.btnAdd = document.getElementById("btn-add");
         this.btnRoute = document.getElementById("btn-route");
         this.btnPolygon = document.getElementById("btn-polygon");
+        this.btnMeasure = document.getElementById("btn-measure");
         this.btnDrawFinish = document.getElementById("btn-draw-finish");
         this.btnRouteClear = document.getElementById("btn-route-clear");
         this.btnEdit = document.getElementById("btn-edit");
@@ -1606,9 +1613,7 @@ class UIManager {
         }
 
         if (this.btnRoute && !MAP.shareMode) {
-            console.log("UI: Adding listener to btn-route.");
             this.btnRoute.addEventListener("click", () => {
-                console.log("UI: btn-route clicked.");
                 if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
                 this.setActiveMode('route');
             });
@@ -1621,9 +1626,15 @@ class UIManager {
             });
         }
 
+        if (this.btnMeasure && !MAP.shareMode) {
+            this.btnMeasure.addEventListener("click", () => {
+                if (!MAP.editMode) return this.showToast("فعّل وضع التحرير");
+                this.setActiveMode('measure');
+            });
+        }
+
         if (this.btnDrawFinish && !MAP.shareMode) {
             this.btnDrawFinish.addEventListener("click", () => {
-                console.log("UI: btn-draw-finish clicked.");
                 if (MAP.modeRouteAdd) {
                     ROUTES.finishCurrentRoute();
                 } else if (MAP.modePolygonAdd) {
@@ -1651,7 +1662,8 @@ class UIManager {
      */
     openSharedInfoCard(content, position, isPinned = false) {
         if (!this.sharedInfoWindow) {
-            this.sharedInfoWindow = new google.maps.InfoWindow({ maxWidth: 400 });
+            // تم تعديل maxWidth ليكون أكثر مرونة
+            this.sharedInfoWindow = new google.maps.InfoWindow({ maxWidth: 500 });
         }
         // أغلق النافذة الحالية دائمًا قبل فتح نافذة جديدة
         this.sharedInfoWindow.close();
@@ -1664,7 +1676,7 @@ class UIManager {
     }
 
     /**
-     * دالة مركزية لإغلاق نافذة المعلومات.
+     * دالة مركزية لإغلاق نافذة المعلومات عند النقر في الخريطة.
      */
     closeSharedInfoCard() {
         if (this.sharedInfoWindow && !this.infoWindowPinned) {
@@ -1674,13 +1686,21 @@ class UIManager {
         this.infoWindowPinned = false;
     }
 
+    /**
+     * دالة لفرض إغلاق نافذة المعلومات (تُستخدم بعد الحفظ).
+     */
+    forceCloseSharedInfoCard() {
+        if (this.sharedInfoWindow) {
+            this.sharedInfoWindow.close();
+        }
+        this.infoWindowPinned = false;
+    }
 
     /**
      * دالة لتنظيم وتفعيل أوضاع الرسم المختلفة
-     * @param {'add'|'route'|'polygon'} mode - الوضع المطلوب تفعيله
+     * @param {'add'|'route'|'polygon'|'measure'} mode - الوضع المطلوب تفعيله
      */
     setActiveMode(mode) {
-        console.log("UI: setActiveMode called with mode:", mode);
         if (POLYGONS.isEditing) {
             this.showToast("يرجى إنهاء تحرير المضلع الحالي أولاً");
             return;
@@ -1690,11 +1710,13 @@ class UIManager {
         MAP.modeAdd = false;
         MAP.modeRouteAdd = false;
         MAP.modePolygonAdd = false;
+        MEASURE.deactivate();
 
         // إعادة تعيين حالة الأزرار
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.setAttribute("aria-pressed", "false");
         if (this.btnPolygon) this.btnPolygon.setAttribute("aria-pressed", "false");
+        if (this.btnMeasure) this.btnMeasure.setAttribute("aria-pressed", "false");
 
         MAP.setCursor("grab");
 
@@ -1707,7 +1729,6 @@ class UIManager {
                 this.showToast("اضغط على الخريطة لإضافة موقع");
                 break;
             case 'route':
-                console.log("UI: Starting new route sequence.");
                 ROUTES.startNewRouteSequence();
                 MAP.modeRouteAdd = true;
                 MAP.setCursor("crosshair");
@@ -1721,6 +1742,11 @@ class UIManager {
                 this.showDrawFinishUI();
                 this.showToast("اضغط لإضافة رؤوس المضلع، ثم 'إنهاء الرسم'");
                 break;
+            case 'measure':
+                MEASURE.activate();
+                if (this.btnMeasure) this.btnMeasure.setAttribute("aria-pressed", "true");
+                this.showDefaultUI();
+                break;
         }
     }
 
@@ -1728,38 +1754,33 @@ class UIManager {
         if (this.btnAdd) this.btnAdd.style.display = "none";
         if (this.btnRoute) this.btnRoute.style.display = "none";
         if (this.btnPolygon) this.btnPolygon.style.display = "none";
+        if (this.btnMeasure) this.btnMeasure.style.display = "none";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
         if (this.btnRouteClear) this.btnRouteClear.style.display = "none";
         if (this.btnEdit) this.btnEdit.style.display = "none";
         this.updateModeBadge("view");
     }
 
-    /**
-     * إظهار واجهة إنهاء الرسم (للمسارات والمضلعات)
-     */
     showDrawFinishUI() {
         if (this.btnAdd) this.btnAdd.setAttribute("aria-pressed", "false");
         if (this.btnRoute) this.btnRoute.style.display = "none";
         if (this.btnPolygon) this.btnPolygon.style.display = "none";
+        if (this.btnMeasure) this.btnMeasure.style.display = "none";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "inline-block";
     }
 
-    /**
-     * إظهار الواجهة الافتراضية (أزرار الرسم الرئيسية)
-     */
     showDefaultUI() {
         if (this.btnRoute) this.btnRoute.style.display = "inline-block";
         if (this.btnPolygon) this.btnPolygon.style.display = "inline-block";
+        if (this.btnMeasure) this.btnMeasure.style.display = "inline-block";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
     }
 
-    /**
-     * إظهار واجهة تحرير المضلع (إخفاء جميع الأزرار)
-     */
     showPolygonEditingUI() {
         if (this.btnAdd) this.btnAdd.style.display = "none";
         if (this.btnRoute) this.btnRoute.style.display = "none";
         if (this.btnPolygon) this.btnPolygon.style.display = "none";
+        if (this.btnMeasure) this.btnMeasure.style.display = "none";
         if (this.btnDrawFinish) this.btnDrawFinish.style.display = "none";
     }
 
