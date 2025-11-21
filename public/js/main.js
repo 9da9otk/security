@@ -1521,6 +1521,150 @@ class ShareManager {
 const SHARE = new ShareManager();
 
 /* ============================================================
+   MeasureManager — أداة القياس
+   ============================================================ */
+class MeasureManager {
+    constructor() {
+        this.isActive = false;
+        this.points = [];
+        this.polyline = null;
+        this.polygon = null;
+        this.infoWindow = null;
+        this.map = null;
+        this.mapClickListener = null;
+        this.mapRightClickListener = null;
+        this.mapDblClickListener = null;
+
+        bus.on("map:ready", map => {
+            this.map = map;
+        });
+    }
+
+    activate() {
+        if (this.isActive) return;
+        this.isActive = true;
+        this.clearMeasurement();
+        MAP.setCursor('crosshair');
+        this.attachMapListeners();
+        bus.emit("toast", "وضع القياس مفعل. انقر لإضافة نقاط، انقر بزر الماوس الأيمن للحذف، انقر نقرًا مزدوجًا للإنهاء.");
+    }
+
+    deactivate() {
+        if (!this.isActive) return;
+        this.isActive = false;
+        this.clearMeasurement();
+        MAP.setCursor('grab');
+        this.detachMapListeners();
+    }
+
+    attachMapListeners() {
+        this.mapClickListener = this.map.addListener('click', (e) => this.addPoint(e.latLng));
+        this.mapRightClickListener = this.map.addListener('rightclick', () => this.removeLastPoint());
+        this.mapDblClickListener = this.map.addListener('dblclick', () => this.finishMeasurement());
+    }
+
+    detachMapListeners() {
+        if (this.mapClickListener) google.maps.event.removeListener(this.mapClickListener);
+        if (this.mapRightClickListener) google.maps.event.removeListener(this.mapRightClickListener);
+        if (this.mapDblClickListener) google.maps.event.removeListener(this.mapDblClickListener);
+    }
+
+    addPoint(latLng) {
+        this.points.push(latLng);
+        this.redrawMeasurement();
+    }
+
+    removeLastPoint() {
+        if (this.points.length > 0) {
+            this.points.pop();
+            this.redrawMeasurement();
+        }
+    }
+
+    redrawMeasurement() {
+        // مسح الرسومات السابقة
+        if (this.polyline) this.polyline.setMap(null);
+        if (this.polygon) this.polygon.setMap(null);
+        if (this.infoWindow) this.infoWindow.close();
+
+        if (this.points.length === 0) return;
+
+        // حساب المسافة
+        let distance = 0;
+        if (this.points.length > 1) {
+            const path = new google.maps.MVCArray(this.points);
+            distance = google.maps.geometry.spherical.computeLength(path);
+        }
+
+        // حساب المساحة
+        let area = 0;
+        if (this.points.length > 2) {
+            area = google.maps.geometry.spherical.computeArea(this.points);
+        }
+
+        // رسم الخط
+        this.polyline = new google.maps.Polyline({
+            path: this.points,
+            map: this.map,
+            strokeColor: "#FF0000",
+            strokeOpacity: 0.8,
+            strokeWeight: 3,
+            geodesic: true,
+        });
+
+        // رسم المضلع (إذا كانت هناك 3 نقاط أو أكثر)
+        if (this.points.length > 2) {
+            this.polygon = new google.maps.Polygon({
+                paths: this.points,
+                map: this.map,
+                fillColor: "#FF0000",
+                fillOpacity: 0.2,
+                strokeOpacity: 0,
+            });
+        }
+
+        // عرض النتيجة في نافذة معلومات
+        const lastPoint = this.points[this.points.length - 1];
+        let content = `<div style="direction: rtl; font-family: 'Cairo', sans-serif;">`;
+        content += `<b>المسافة الإجمالية:</b> ${Utils.formatDistance(distance)}<br>`;
+        if (area > 0) {
+            content += `<b>المساحة الإجمالية:</b> ${Utils.formatArea(area)}`;
+        }
+        content += `</div>`;
+
+        if (!this.infoWindow) {
+            this.infoWindow = new google.maps.InfoWindow({ disableAutoPan: false });
+        }
+        this.infoWindow.setContent(content);
+        this.infoWindow.setPosition(lastPoint);
+        this.infoWindow.open(this.map);
+    }
+
+    finishMeasurement() {
+        this.deactivate();
+        bus.emit("toast", "تم الانتهاء من القياس");
+    }
+
+    clearMeasurement() {
+        if (this.polyline) {
+            this.polyline.setMap(null);
+            this.polyline = null;
+        }
+        if (this.polygon) {
+            this.polygon.setMap(null);
+            this.polygon = null;
+        }
+        if (this.infoWindow) {
+            this.infoWindow.close();
+        }
+        this.points = [];
+    }
+}
+
+// هذا السطر مهم جدًا لإنشاء نسخة من الكلاس
+const MEASURE = new MeasureManager();
+
+/* ============================================================
    UIManager — واجهة المستخدم
 ============================================================ */
 
