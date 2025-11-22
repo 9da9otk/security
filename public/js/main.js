@@ -326,9 +326,9 @@ class LocationManager {
             { value: 'parking', label: 'مواقف parking' },
             { value: 'local_fire_department', label: 'إطفاء local_fire_department' },
             { value: 'business', label: 'نشاط تجاري business' },
-            { value: 'report_problem', label: 'مشكلة report_problem' },
-            { value: 'report', label: 'تقرير report' },
-            { value: 'gpp_good', label: 'جيد gpp_good' }
+            { value: 'report_problem', label: 'موقع مخصص' },
+            { value: 'report', label: 'موقع مخصص1' },
+            { value: 'gpp_good', label: 'موقع مخصص2' }
         ];
 
         bus.on("map:ready", map => {
@@ -380,13 +380,11 @@ class LocationManager {
         });
     }
 
-    // *** الدالة الجديدة لحل المشكلة ***
+    // *** دالة الانتظار لضمان تحميل المكتبة ***
     waitForGmpMarkersAndLoad() {
         if (typeof google.maps.marker !== 'undefined' && typeof google.maps.marker.AdvancedMarkerElement !== 'undefined') {
-            // المكتبة تم تحميلها، يمكننا الآن تحميل المواقع
             this.loadDefaultLocations();
         } else {
-            // المكتبة لم تتحمل بعد، انتظر 100 ميلي ثانية وحاول مرة أخرى
             setTimeout(() => this.waitForGmpMarkersAndLoad(), 100);
         }
     }
@@ -449,7 +447,6 @@ class LocationManager {
             zIndex: 100
         });
 
-        // إنشاء كائن (item) ليحتوي على العلامة
         const item = {
             id: data.id,
             name: data.name || "نقطة",
@@ -470,9 +467,9 @@ class LocationManager {
 
     buildMarkerContent(data) {
         let markerContent;
-        let zIndex = 100;
 
         if (data.usePin) {
+            // هذا الجزء خاص بالأيقونات (مثل الشرطة والمستشفى) - يبقى كما هو
             const iconEl = document.createElement("i");
             iconEl.className = 'material-icons';
             iconEl.textContent = this.availableIcons.find(icon => icon.value === data.iconType)?.label.split(' ')[0] || 'place';
@@ -492,15 +489,16 @@ class LocationManager {
                 box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             `;
             markerContent.appendChild(iconEl);
-            zIndex = 101;
         } else {
+            // *** هنا التعديل ***
+            // تم جعل العلامة شفافة تماماً وبدون حدود
+            // هذا سيبقي العلامة موجودة برمجياً (للسحب والإفلات) لكنها مخفية بصرياً
             markerContent = document.createElement("div");
             markerContent.style.cssText = `
-                width: 12px;
-                height: 12px;
-                border-radius: 50%;
-                background-color: white;
-                border: 2px solid ${data.color || "#ff0000"};
+                width: 16px;
+                height: 16px;
+                background-color: transparent; /* خلفية شفافة */
+                border: none; /* بدون حدود */
                 cursor: pointer;
             `;
         }
