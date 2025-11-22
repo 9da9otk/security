@@ -293,6 +293,7 @@ const MAP = new MapController();
    LocationManager — إدارة المواقع (نسخة مبسطة ومُصلحة)
    ============================================================ */
 
+
 /* ============================================================
    LocationManager — إدارة المواقع + بطاقات Glass (نسخة مُصلحة بالكامل)
    ============================================================ */
@@ -358,7 +359,7 @@ class LocationManager {
                 radius: 22, 
                 color: "#ff0000", 
                 fillOpacity: 0.3, 
-                recipients: [], // <-- تم إضافة الفاصلة هنا
+                recipients: [], 
                 name: "موقع جديد"
             });
 
@@ -433,7 +434,7 @@ class LocationManager {
             name: data.name || "نقطة",
             color: data.color,
             radius: data.radius,
-            recipients: data.recipients, // تصحيح من "مستلمون" إلى "recipients"
+            recipients: data.recipients,
             iconType: data.iconType || 'default',
             usePin: data.usePin || false,
             showCircle: data.showCircle || true,
@@ -451,7 +452,6 @@ class LocationManager {
         let zIndex = 100;
 
         if (data.usePin) {
-            // إنشاء دبوس (Pin) مع أيقونة
             const iconEl = document.createElement("i");
             iconEl.className = 'material-icons';
             iconEl.textContent = this.availableIcons.find(icon => icon.value === data.iconType)?.label.split(' ')[0] || 'place';
@@ -471,9 +471,8 @@ class LocationManager {
                 box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             `;
             markerContent.appendChild(iconEl);
-            zIndex = 101; // جعل الدبوس فوق الدائرة
+            zIndex = 101;
         } else {
-            // إنشاء دائرة بسيطة (أو محتوى فارغ) كعنصر تفاعلي
             markerContent = document.createElement("div");
             markerContent.style.cssText = `
                 width: 12px;
@@ -579,6 +578,7 @@ class LocationManager {
         google.maps.event.addListenerOnce(UI.sharedInfoWindow, "domready", () => this.attachCardEvents(item, hoverOnly));
     }
 
+    // تم إصلاح هذه الدالة بالكامل وإزالة الكود المكرر
     attachCardEvents(item, hoverOnly = false) {
         const closeBtn = document.getElementById("loc-close");
         if (closeBtn) closeBtn.addEventListener("click", () => { UI.forceCloseSharedInfoCard(); });
@@ -598,20 +598,13 @@ class LocationManager {
 
         if (saveBtn) {
             saveBtn.addEventListener("click", () => {
-                // تحديث المستلمين
                 item.recipients = recEl.value.split("\n").map(s => s.trim()).filter(Boolean);
-                // تحديث اسم الموقع
                 item.name = nameEl.value.trim();
-                
-                // تحديث نوع الأيقونة
                 item.iconType = iconTypeEl.value;
-                
-                // تحديث خصائص العلامة
                 item.color = colEl.value;
                 item.radius = Utils.clamp(+radEl.value, 5, 5000);
                 item.fillOpacity = Utils.clamp(+opEl.value, 0, 100) / 100;
 
-                // تحديث الدائرة لتعكس التغييرات
                 item.circle.setOptions({
                     fillColor: item.color,
                     strokeColor: item.color,
@@ -619,7 +612,6 @@ class LocationManager {
                     fillOpacity: item.fillOpacity
                 });
                 
-                // تحديث محتوى العلامة
                 item.marker.content = this.buildMarkerContent(item);
 
                 bus.emit("persist");
@@ -669,6 +661,7 @@ class LocationManager {
 }
 
 const LOCATIONS = new LocationManager();
+
         // إنشاء علامة موقع (marker)
         const marker = new google.maps.marker.AdvancedMarkerElement({
             position: { lat: data.lat, lng: data.lng },
